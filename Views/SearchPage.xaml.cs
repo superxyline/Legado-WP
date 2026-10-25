@@ -1,30 +1,41 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
+using Windows.UI.Xaml.Media;
 using legado_wp.Core;
 
 namespace legado_wp.Views
 {
     /// <summary>
-    /// 搜索页：全部启用书源并发搜索（每源 12s 超时，并发 8）。
+    /// 搜索页：全部启用书源并发搜索。
+    /// 流式体验（对照安卓版）：每个源一出结果就刷新列表（400ms 节流，保持滚动位置）；
+    /// 点击结果或点「停止」立即取消剩余搜索。
     /// </summary>
     public sealed partial class SearchPage : Page
     {
         private class ResultItem : SearchBook
         {
-            public string SourceName;
+            // XAML 绑定只认属性，不能是公有字段
+            public string SourceName { get; set; }
         }
 
         private CancellationTokenSource _cts;
+        private readonly List<ResultItem> _results = new List<ResultItem>();
+        private string _key;
+        private readonly DispatcherTimer _flushTimer;
+        private bool _flushPending;
 
         public SearchPage()
         {
             InitializeComponent();
+            _flushTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+            _flushTimer.Tick += (s, e) => { _flushTimer.Stop(); _flushPending = false; Flush(); };
         }
 
         private void OnKeyDown(object sender, KeyRoutedEventArgs e)
@@ -32,7 +43,14 @@ namespace legado_wp.Views
             if (e.Key == Windows.System.VirtualKey.Enter) DoSearch();
         }
 
-        private async void OnSearchClick(object sender, RoutedEventArgs e) => DoSearch();
+        private void OnSearchClick(object sender, RoutedEventArgs e) => DoSearch();
+
+        private void OnStopClick(object sender, RoutedEventArgs e)
+        {
+            _cts?.Cancel();
+            StopBtn.IsEnabled = false;
+            StatusHint.Text = "已停止，共找到 " + _results.Count + " 条";
+        }
 
         private async void DoSearch()
         {
@@ -49,145 +67,152 @@ namespace legado_wp.Views
             _cts?.Cancel();
             _cts = new CancellationTokenSource();
             var ct = _cts.Token;
+            _key = key;
 
+            _results.Clear();
             ResultList.ItemsSource = null;
             StatusHint.Text = "搜索中…（首轮）";
             Progress.Visibility = Visibility.Visible;
+            StopBtn.IsEnabled = true;
 
-            var results = new System.Collections.Concurrent.ConcurrentBag<ResultItem>();
-            var errors = new System.Collections.Concurrent.ConcurrentBag<string>();
-            var okSet = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>();
+            var errors = new ConcurrentBag<string>();
+            var okSet = new ConcurrentDictionary<string, byte>();
 
-            // 单源搜索（含诊断记录），返回 true=本轮有结果
-            // fetcher 由轮次注入：每轮全新 HttpPageFetcher，隔离可能坏掉的 HttpClient 状态
-            Func<BookSource, int, IPageFetcher, Task<bool>> searchOne = async (src, timeoutMs, fetcher) =>
+            // 每源完成即入列 + 节流刷新（流式出结果）
+            Action<BookSource, SearchOutcome> onDone = (src, o) =>
             {
-                try
+                if (o.Ok)
                 {
-                    var wb = new WebBook(fetcher);
-                    var found = await wb.SearchBookAsync(src, key).TimeoutAfter(timeoutMs);
-                    if (found.Count > 0)
-                    {
-                        okSet[src.BookSourceUrl] = 1;
-                        foreach (var sb in found)
-                            results.Add(new ResultItem
-                            {
-                                Name = sb.Name, Author = sb.Author, BookUrl = sb.BookUrl,
-                                CoverUrl = sb.CoverUrl, Intro = sb.Intro,
-                                LastChapter = sb.LastChapter, SourceUrl = sb.SourceUrl,
-                                SourceName = src.BookSourceName
-                            });
-                        return true;
-                    }
-                    var detail = wb.DebugLog.Count > 0
-                        ? wb.DebugLog[wb.DebugLog.Count - 1].Replace("search ", "[")
-                            .Replace(" url=", "] ") + "bookList=0"
-                        : "bookList=0";
-                    errors.Add(src.BookSourceName + ": " + detail);
-                    return false;
+                    okSet[src.BookSourceUrl] = 1;
+                    foreach (var sb in o.Books)
+                        _results.Add(new ResultItem
+                        {
+                            Name = sb.Name, Author = sb.Author, BookUrl = sb.BookUrl,
+                            CoverUrl = sb.CoverUrl, Intro = sb.Intro,
+                            LastChapter = sb.LastChapter, SourceUrl = sb.SourceUrl,
+                            SourceName = src.BookSourceName
+                        });
+                    ScheduleFlush();
                 }
-                catch (Exception ex)
+                else if (o.Error != null)
                 {
-                    var msg = ex is TimeoutException ? "超时" : ex.Message;
-                    if (msg.Length > 50) msg = msg.Substring(0, 50);
-                    errors.Add(src.BookSourceName + ": " + msg);
-                    return false;
+                    errors.Add(src.BookSourceName + ": " + o.Error);
                 }
             };
-
-            // 并发跑一批源（带进度显示 + 轮级全新 fetcher 隔离）
-            Func<IEnumerable<BookSource>, int, int, Task> runRound = async (round, timeoutMs, concurrency) =>
+            Action<int, int> onProgress = (d, total) =>
             {
-                var list0 = round.ToList();
-                var done = 0;
-                var fetcher = new HttpPageFetcher(); // 每轮独立 HttpClient，坏状态不跨轮
-                var sem = new SemaphoreSlim(concurrency);
-                await Task.WhenAll(list0.Select(async src =>
-                {
-                    await sem.WaitAsync(ct);
-                    try { await searchOne(src, timeoutMs, fetcher); }
-                    finally
-                    {
-                        sem.Release();
-                        var d = System.Threading.Interlocked.Increment(ref done);
-                        StatusHint.Text = "搜索中… " + d + "/" + list0.Count;
-                    }
-                }));
+                StatusHint.Text = "搜索中… " + d + "/" + total + "，已找到 " + _results.Count + " 条";
             };
 
-            // 第一轮：全源 4 并发 10s（老芯片并发越保守越稳）
-            await runRound(sources, 10000, 4);
-            ct.ThrowIfCancellationRequested();
-
-            // 第二轮：瞬态补救——首轮无结果/失败的源再试一次
-            var retrySources = sources.Where(s => !okSet.ContainsKey(s.BookSourceUrl)).ToList();
-            if (retrySources.Count > 0)
+            try
             {
-                errors = new System.Collections.Concurrent.ConcurrentBag<string>();
+                // 第一轮：全源 4 并发 10s（老芯片并发越保守越稳）
+                await SearchService.RunRoundAsync(sources, key, new HttpPageFetcher(),
+                    4, 10000, onDone, onProgress, ct);
 
-                if (okSet.Count == 0)
+                // 第二轮：瞬态补救——首轮无结果/失败的源再试一次
+                var retrySources = sources.Where(s => !okSet.ContainsKey(s.BookSourceUrl)).ToList();
+                if (retrySources.Count > 0)
                 {
-                    // 全灭场景：全新 fetcher 探活 6 个源（8s 放宽），避免网络已断时空跑 40 个
-                    var probe = retrySources.Take(6).ToList();
-                    StatusHint.Text = "网络探活中…";
-                    await runRound(probe, 8000, 3);
+                    errors = new ConcurrentBag<string>();
+
                     if (okSet.Count == 0)
                     {
-                        // 探活全败：显示具体错误类型（超时/DNS/拒连），便于定位
-                        Progress.Visibility = Visibility.Collapsed;
-                        var listDead = results.OrderBy(r => MatchLevel(r.Name, key)).ThenBy(r => r.SourceName).ToList();
-                        ResultList.ItemsSource = listDead;
-                        var probeErr = errors.Count > 0
-                            ? "\n错误详情: " + string.Join("；", errors.Take(3))
-                            : "";
-                        StatusHint.Text = "所有源无响应\n" + probeErr + "\n请确认手机浏览器能否打开网站后重试";
-                        return;
+                        // 全灭场景：全新 fetcher 探活 6 个源（8s 放宽），避免网络已断时空跑全部
+                        StatusHint.Text = "网络探活中…";
+                        var probe = retrySources.Take(6).ToList();
+                        await SearchService.RunRoundAsync(probe, key, new HttpPageFetcher(),
+                            3, 8000, onDone, onProgress, ct);
+                        if (okSet.Count == 0)
+                        {
+                            Flush();
+                            var probeErr = errors.Count > 0
+                                ? "\n错误详情: " + string.Join("；", errors.Take(3))
+                                : "";
+                            StatusHint.Text = "所有源无响应" + probeErr + "\n请确认手机浏览器能否打开网站后重试";
+                            return;
+                        }
+                        // 探活有结果：跑剩余源
+                        var probed = new HashSet<string>(probe.Select(p => p.BookSourceUrl));
+                        await SearchService.RunRoundAsync(
+                            retrySources.Where(s => !probed.Contains(s.BookSourceUrl)).ToList(),
+                            key, new HttpPageFetcher(), 4, 8000, onDone, onProgress, ct);
                     }
-                    // 探活有结果：跑剩余源
-                    var probed = new HashSet<string>(probe.Select(p => p.BookSourceUrl));
-                    await runRound(retrySources.Where(s => !probed.Contains(s.BookSourceUrl) && !okSet.ContainsKey(s.BookSourceUrl)), 8000, 4);
-                }
-                else
-                {
-                    // 部分失败：直接重试失败源
-                    await runRound(retrySources, 8000, 4);
-                }
-                ct.ThrowIfCancellationRequested();
+                    else
+                    {
+                        // 部分失败：直接重试失败源
+                        await SearchService.RunRoundAsync(retrySources, key, new HttpPageFetcher(),
+                            4, 8000, onDone, onProgress, ct);
+                    }
 
-                foreach (var s in retrySources)
-                    if (!okSet.ContainsKey(s.BookSourceUrl))
-                        errors.Add(s.BookSourceName + ": 重试仍无结果");
+                    foreach (var s in retrySources)
+                        if (!okSet.ContainsKey(s.BookSourceUrl))
+                            errors.Add(s.BookSourceName + ": 重试仍无结果");
+                }
+
+                // 匹配度排序：精确等于 > 书名以关键词开头 > 包含（同级按源名+书名）
+                Flush();
+                Progress.Visibility = Visibility.Collapsed;
+                StopBtn.IsEnabled = false;
+
+                var okSources = _results.Select(r => r.SourceName).Distinct().Count();
+                var failMsg = errors.Count > 0
+                    ? "\n失败示例: " + string.Join("；", errors.Take(3))
+                    : "";
+                StatusHint.Text = _results.Count > 0
+                    ? ""
+                    : "没有找到「" + key + "」\n" + sources.Count + " 个源："
+                      + okSources + " 个有结果，" + errors.Count + " 个无结果/失败" + failMsg;
             }
+            catch (OperationCanceledException)
+            {
+                // 用户点了结果/停止：保留已找到的结果
+                Flush();
+                StatusHint.Text = "已停止，共找到 " + _results.Count + " 条";
+            }
+            finally
+            {
+                Progress.Visibility = Visibility.Collapsed;
+                StopBtn.IsEnabled = false;
+                _flushTimer.Stop();
+                _flushPending = false;
+            }
+        }
 
-            Progress.Visibility = Visibility.Collapsed;
-            // 匹配度排序：精确等于 > 书名以关键词开头 > 包含（同级按源名+书名）
-            var list = results
-                .OrderBy(r => MatchLevel(r.Name, key))
+        /// <summary>400ms 节流：攒一批结果再刷，避免高频重绑卡 UI。</summary>
+        private void ScheduleFlush()
+        {
+            if (_flushPending) return;
+            _flushPending = true;
+            _flushTimer.Start();
+        }
+
+        /// <summary>按匹配度排序重绑列表，并保持用户当前滚动位置。</summary>
+        private void Flush()
+        {
+            var sv = FindDescendant<ScrollViewer>(ResultList);
+            var offset = sv?.VerticalOffset ?? 0;
+            var list = _results
+                .OrderBy(r => SearchService.MatchLevel(r.Name, _key))
                 .ThenBy(r => r.SourceName)
                 .ThenBy(r => r.Name)
                 .ToList();
             ResultList.ItemsSource = list;
-
-            // 诊断状态行：成功源数 / 有结果数 / 失败源数 + 首条错误
-            var okSources = list.Select(r => r.SourceName).Distinct().Count();
-            var failMsg = errors.Count > 0
-                ? "\n失败示例: " + string.Join("；", errors.Take(3))
-                : "";
-            StatusHint.Text = list.Count > 0
-                ? ""
-                : "没有找到「" + key + "」\n" + sources.Count + " 个源："
-                  + okSources + " 个有结果，" + errors.Count + " 个无结果/失败" + failMsg;
+            if (sv != null && offset > 0) sv.ChangeView(null, offset, null, true);
         }
 
-        /// <summary>0=精确匹配，1=书名以关键词开头，2=其余（包含）。</summary>
-        private static int MatchLevel(string name, string key)
+        private static T FindDescendant<T>(DependencyObject root) where T : class
         {
-            if (string.IsNullOrEmpty(name)) return 3;
-            var n = name.Trim();
-            var k = (key ?? "").Trim();
-            if (n == k) return 0;
-            if (n.StartsWith(k, StringComparison.Ordinal)) return 1;
-            return 2;
+            if (root == null) return null;
+            var count = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is T t) return t;
+                var found = FindDescendant<T>(child);
+                if (found != null) return found;
+            }
+            return null;
         }
 
         private void OnBackClick(object sender, RoutedEventArgs e)
@@ -199,6 +224,10 @@ namespace legado_wp.Views
         {
             var item = e.ClickedItem as ResultItem;
             if (item == null) return;
+            // 点了结果就停掉剩余搜索（省流量省电，结果已在列表中）
+            _cts?.Cancel();
+            StopBtn.IsEnabled = false;
+
             StatusHint.Text = "正在打开《" + item.Name + "》…";
 
             var src = (await Storage.LoadSourcesAsync())

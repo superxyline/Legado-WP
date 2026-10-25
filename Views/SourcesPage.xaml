@@ -7,20 +7,32 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Orientation="Horizontal" Padding="8,10">
             <Button Content="←" Click="OnBackClick" VerticalAlignment="Center"/>
             <TextBlock Text="书源管理" FontSize="20" FontWeight="Bold" Margin="12,0,0,0" VerticalAlignment="Center"/>
+            <Button x:Name="ManageBtn" Content="管理" Margin="12,0,0,0" FontSize="13"
+                    Click="OnManageClick" VerticalAlignment="Center"/>
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Padding="8,0,8,8">
+        <!-- 多选管理操作栏（管理模式可见） -->
+        <StackPanel x:Name="ManageBar" Grid.Row="1" Orientation="Horizontal" Padding="8,0,8,4" Visibility="Collapsed">
+            <Button Content="全选" FontSize="12" Click="OnSelectAllClick"/>
+            <Button Content="反选" FontSize="12" Margin="8,0,0,0" Click="OnInvertClick"/>
+            <Button Content="启用" FontSize="12" Margin="8,0,0,0" Click="OnBatchEnableClick"/>
+            <Button Content="禁用" FontSize="12" Margin="8,0,0,0" Click="OnBatchDisableClick"/>
+            <Button Content="删除所选" FontSize="12" Margin="8,0,0,0" Click="OnBatchDeleteClick"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Padding="8,0,8,8">
             <TextBox x:Name="UrlBox" PlaceholderText="书源 JSON 的 URL" Width="260"/>
             <Button Content="导入" Margin="8,0,0,0" Click="OnImportClick"/>
         </StackPanel>
 
-        <ListView x:Name="SourceList" Grid.Row="2" Padding="8">
+        <ListView x:Name="SourceList" Grid.Row="3" Padding="8" SelectionMode="Single">
             <ListView.ItemTemplate>
                 <DataTemplate>
                     <Grid Margin="0,8">
@@ -43,7 +55,7 @@
             </ListView.ItemTemplate>
         </ListView>
 
-        <TextBlock x:Name="StatusHint" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center"
+        <TextBlock x:Name="StatusHint" Grid.Row="3" HorizontalAlignment="Center" VerticalAlignment="Center"
                    Foreground="Gray" TextAlignment="Center" Text="暂无书源&#x0a;粘贴书源 URL 导入"/>
     </Grid>
 </Page>

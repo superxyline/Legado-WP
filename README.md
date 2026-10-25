@@ -20,10 +20,12 @@ Legado-WP 是一个用 C# / XAML 从零实现的 Windows 10 (UWP) 小说阅读�
 
 | 功能 | 说明 |
 |---|---|
-| 书源管理 | URL 导入「阅读」书源 JSON（单对象/数组），启停、删除、去重合并 |
+| 书源管理 | URL 导入「阅读」书源 JSON（单对象/数组），启停、删除、去重合并；**多选管理模式**（全选/反选/批量启用/批量禁用/批量删除） |
 | 全源搜索 | 并发搜索全部启用书源，瞬态失败自动重试，按匹配度排序（精确 > 前缀 > 包含） |
 | 书籍详情 | 简介 + 目录 + 一键加入书架 / 离线全文 |
 | 阅读器 | 三种排版：上下滑动 / 平移覆盖 / 翻页动画；字号调节；段首缩进；跨章续读 |
+| 换源 | 详情页一键搜同书其他源，弹窗流式展示（可停止）；选中即切换，自动迁移阅读进度与书架记录 |
+| 搜索体验 | 全源并发搜索，结果**陆续到达即显示**（400ms 节流、保持滚动位置）；点任意结果或「停止」立即取消剩余搜索 |
 | 书签 | 按章（分页模式下含页码）添加/列表/一键跳转 |
 | 阅读进度 | 自动记忆，书架点击直达上次位置 |
 | 离线全文 | 逐章下载缓存（含目录与书源自包含，断网可读，书源删除也可读） |
@@ -52,7 +54,7 @@ Legado-WP 是一个用 C# / XAML 从零实现的 Windows 10 (UWP) 小说阅读�
 ### 零、快速部署（下载预编译包，推荐）
 
 不想本地编译的话，直接去 [Releases](https://github.com/superxyline/Legado-WP/releases) 页面下载
-最新版部署包（如 `legado-wp-0.0.1.0-deploy.zip`），解压后按包内 `部署说明.md` 操作即可。
+最新版部署包（如 `legado-wp-0.0.2.0-deploy.zip`），解压后按包内 `部署说明.md` 操作即可。
 包内已包含：已签名的 ARM appx、全部依赖包、签名证书（`.cer`，仅公钥）和一键安装脚本。
 
 > **部署遇到困难？可以直接让 AI Agent 协助。** 把本 README、`部署说明.md`、
@@ -117,7 +119,7 @@ Import-Certificate .\legado-wp.cer -CertStoreLocation Cert:\LocalMachine\Trusted
 $deploy = 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\WinAppDeployCmd.exe'
 
 # 扫到手机 IP 后：
-& $deploy install -file .\AppPackages\legado-wp_0.0.1.0_ARM_Test\legado-wp_0.0.1.0_ARM.appx `
+& $deploy install -file .\AppPackages\legado-wp_0.0.2.0_ARM_Test\legado-wp_0.0.2.0_ARM.appx `
   -ip <手机IP> -pin <配对码>
 ```
 
@@ -153,7 +155,6 @@ CodeBuddy / Cursor / Copilot 等），它能代你定位并给出修复命令：
 - [ ] XPath 规则支持（`@XPath:`）
 - [ ] `java.*` 桥扩展（压缩包、字体反爬 `queryTTF`）
 - [ ] 繁简转换（t2s / s2t）
-- [ ] 换源（同名书多源切换）
 - [ ] 夜间模式 / 主题色
 - [ ] 本地 TXT / EPUB
 - [ ] 发现页（exploreUrl）
@@ -172,6 +173,7 @@ Core/
   AnalyzeUrl.cs      URL 规则（POST/GET/charset/headers/option JSON/{{key}}）
   HttpHelper.cs      IPageFetcher 抽象 + HttpClient 实现（GBK/三级 charset 探测/Cookie）
   WebBook.cs         搜索→详情→目录(翻页)→正文(翻页+净化) 四阶段链路
+  SearchService.cs   全源并发搜索（逐源回调 + 取消，支撑流式结果与换源）
   JsExtensions.cs    java.* 桥（WinRT 加密：MD5/SHA/HMAC/AES/RSA + ajax）
   JsEngine.cs        Jint 封装（变量绑定 + fetcher 注入）
   Storage.cs         书源/书架/进度/书签持久化

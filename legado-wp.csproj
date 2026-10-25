@@ -71,6 +71,7 @@
     <Compile Include="Core\JsEngine.cs" />
     <Compile Include="Core\M3Cases.cs" />
     <Compile Include="Core\OfflineStore.cs" />
+    <Compile Include="Core\SearchService.cs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Views\BookshelfPage.xaml.cs"><DependentUpon>BookshelfPage.xaml</DependentUpon></Compile>

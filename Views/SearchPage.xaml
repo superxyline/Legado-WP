@@ -12,8 +12,9 @@
 
         <StackPanel Orientation="Horizontal" Padding="8">
             <Button Content="←" Click="OnBackClick" VerticalAlignment="Center"/>
-            <TextBox x:Name="KeyBox" PlaceholderText="书名 / 作者" Width="240" Margin="8,0,0,0" KeyDown="OnKeyDown"/>
+            <TextBox x:Name="KeyBox" PlaceholderText="书名 / 作者" Width="200" Margin="8,0,0,0" KeyDown="OnKeyDown"/>
             <Button Content="搜索" Margin="8,0,0,0" Click="OnSearchClick"/>
+            <Button x:Name="StopBtn" Content="停止" Margin="8,0,0,0" Click="OnStopClick" IsEnabled="False"/>
         </StackPanel>
 
         <ProgressBar x:Name="Progress" Grid.Row="1" Visibility="Collapsed"/>
@@ -26,14 +27,15 @@
                             <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiBold"/>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding Author}" FontSize="13" Foreground="Gray"/>
-                                <TextBlock Text="{Binding SourceName}" FontSize="12" Foreground="#1565C0" Margin="12,0,0,0"/>
+                                <TextBlock Text="源:" FontSize="13" Foreground="#1565C0" Margin="12,0,0,0"/>
+                                <TextBlock Text="{Binding SourceName}" FontSize="13" Foreground="#1565C0"/>
                             </StackPanel>
                         </StackPanel>
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
-            <TextBlock x:Name="StatusHint" HorizontalAlignment="Center" VerticalAlignment="Center"
-                       Foreground="Gray" TextAlignment="Center"/>
+            <TextBlock x:Name="StatusHint" HorizontalAlignment="Center" VerticalAlignment="Top"
+                       Foreground="Gray" TextAlignment="Center" Margin="0,20,0,0"/>
         </Grid>
     </Grid>
 </Page>

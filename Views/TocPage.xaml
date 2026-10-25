@@ -24,6 +24,7 @@
         <StackPanel Grid.Row="1" Orientation="Horizontal" Padding="12,8">
             <Button x:Name="ShelfBtn" Content="加入书架" Click="OnShelfClick" FontSize="14"/>
             <Button x:Name="OfflineBtn" Content="离线全文" Click="OnOfflineClick" Margin="10,0,0,0" FontSize="14"/>
+            <Button x:Name="ChangeSourceBtn" Content="换源" Click="OnChangeSourceClick" Margin="10,0,0,0" FontSize="14"/>
             <ProgressRing x:Name="OfflineBusy" Width="20" Height="20" Margin="10,0,0,0" IsActive="False"/>
         </StackPanel>
 
