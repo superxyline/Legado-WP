@@ -54,7 +54,7 @@ Legado-WP 是一个用 C# / XAML 从零实现的 Windows 10 (UWP) 小说阅读�
 ### 零、快速部署（下载预编译包，推荐）
 
 不想本地编译的话，直接去 [Releases](https://github.com/superxyline/Legado-WP/releases) 页面下载
-最新版部署包（如 `legado-wp-0.0.2.0-deploy.zip`），解压后按包内 `部署说明.md` 操作即可。
+最新版部署包（如 `legado-wp-0.0.3.0-deploy.zip`），解压后按包内 `部署说明.md` 操作即可。
 包内已包含：已签名的 ARM appx、全部依赖包、签名证书（`.cer`，仅公钥）和一键安装脚本。
 
 > **部署遇到困难？可以直接让 AI Agent 协助。** 把本 README、`部署说明.md`、
@@ -119,7 +119,7 @@ Import-Certificate .\legado-wp.cer -CertStoreLocation Cert:\LocalMachine\Trusted
 $deploy = 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\WinAppDeployCmd.exe'
 
 # 扫到手机 IP 后：
-& $deploy install -file .\AppPackages\legado-wp_0.0.2.0_ARM_Test\legado-wp_0.0.2.0_ARM.appx `
+& $deploy install -file .\AppPackages\legado-wp_0.0.3.0_ARM_Test\legado-wp_0.0.3.0_ARM.appx `
   -ip <手机IP> -pin <配对码>
 ```
 
