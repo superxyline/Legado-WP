@@ -49,6 +49,17 @@ Legado-WP 是一个用 C# / XAML 从零实现的 Windows 10 (UWP) 小说阅读�
 
 ## 部署到 Windows 10 Mobile 手机
 
+### 零、快速部署（下载预编译包，推荐）
+
+不想本地编译的话，直接去 [Releases](https://github.com/superxyline/Legado-WP/releases) 页面下载
+最新版部署包（如 `legado-wp-0.0.1.0-deploy.zip`），解压后按包内 `部署说明.md` 操作即可。
+包内已包含：已签名的 ARM appx、全部依赖包、签名证书（`.cer`，仅公钥）和一键安装脚本。
+
+> **部署遇到困难？可以直接让 AI Agent 协助。** 把本 README、`部署说明.md`、
+> 你执行命令的完整报错输出、手机与 PC 的系统版本贴给任意编程助手
+> （WorkBuddy / CodeBuddy / Cursor 等），它能替你排查证书信任、设备连接、
+> 依赖安装等绝大部分问题。
+
 ### 一、编译（PC 端）
 
 环境要求：
@@ -106,7 +117,7 @@ Import-Certificate .\legado-wp.cer -CertStoreLocation Cert:\LocalMachine\Trusted
 $deploy = 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\WinAppDeployCmd.exe'
 
 # 扫到手机 IP 后：
-& $deploy install -file .\AppPackages\legado-wp_0.0.11.0_ARM_Test\legado-wp_0.0.11.0_ARM.appx `
+& $deploy install -file .\AppPackages\legado-wp_0.0.1.0_ARM_Test\legado-wp_0.0.1.0_ARM.appx `
   -ip <手机IP> -pin <配对码>
 ```
 
@@ -115,6 +126,27 @@ $deploy = 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\WinAppDep
 5. 开始屏幕找到「阅读」图标，导入书源 URL，开始阅读。
 
 > 日常升级：卸载重装会清书架与进度（书源需重导）。可用 `-p` 传新版本号编译后用 `update` 子命令保数据升级。
+
+### 四、部署遇到困难？让 AI Agent 帮你
+
+Windows 10 Mobile 侧载的坑集中在证书信任、设备发现/配对、依赖包三处。
+卡住的时候不必硬刚，直接把下面信息贴给任意 AI 编程助手（WorkBuddy /
+CodeBuddy / Cursor / Copilot 等），它能代你定位并给出修复命令：
+
+1. 本 README 与部署包内的 `部署说明.md` 全文；
+2. 你执行的命令及其**完整输出**（报错原文，别截断）；
+3. 手机系统版本（设置 → 系统 → 关于）与 PC 的 Windows 版本；
+4. PC 上 `C:\Program Files (x86)\Windows Kits\10\bin\` 下是否存在 `10.0.16299.0`；
+5. 本仓库地址：https://github.com/superxyline/Legado-WP
+
+常见问题速查：
+
+| 现象 | 处理 |
+|---|---|
+| `0x80073CF0` 等签名错误 | 证书未导入本机 `Cert:\LocalMachine\TrustedPeople`（需管理员 PowerShell） |
+| 扫不到 / 连不上手机 | 开发者模式、设备发现未开；不在同一网段；PIN 过期需手机端重新生成 |
+| 依赖安装失败 | 先装 `Dependencies\ARM` 三个包，再装主 appx |
+| 打开部分站点失败 | WP10 网络栈不支持 TLS 1.3，换 HTTP 或 TLS 1.2 的书源 |
 
 ## 路线图
 
