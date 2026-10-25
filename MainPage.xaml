@@ -1,0 +1,20 @@
+<Page
+    x:Class="legado_wp.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <Grid Padding="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <StackPanel Orientation="Horizontal">
+            <Button Content="← 书架" Click="OnBackClick" VerticalAlignment="Center"/>
+            <TextBlock x:Name="Header" Text="legado-wp 自检（M0/M1/M2）" FontSize="18" FontWeight="Bold" Margin="12,0,0,0" VerticalAlignment="Center"/>
+        </StackPanel>
+        <ScrollViewer Grid.Row="2">
+            <TextBlock x:Name="Output" FontSize="13" FontFamily="Consolas" TextWrapping="Wrap"/>
+        </ScrollViewer>
+    </Grid>
+</Page>

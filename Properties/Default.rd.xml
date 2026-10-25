@@ -1,0 +1,9 @@
+<!--
+    legado-wp M0 探针：.NET Native 运行时指令。
+    M3 若引入 Jint 等反射库，需在此补充序列化/反射指令。
+-->
+<Directives xmlns="http://schemas.microsoft.com/netfx/2013/01/metadata">
+  <Application>
+    <Assembly Name="legado-wp" Dynamic="Required All"></Assembly>
+  </Application>
+</Directives>

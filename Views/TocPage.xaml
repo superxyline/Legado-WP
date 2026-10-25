@@ -1,0 +1,43 @@
+<Page
+    x:Class="legado_wp.Views.TocPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Padding="12,10,12,2">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="←" Click="OnBackClick" VerticalAlignment="Top"/>
+                <TextBlock x:Name="BookTitle" FontSize="22" FontWeight="Bold" Margin="10,0,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+            <TextBlock x:Name="BookMeta" FontSize="12" Foreground="Gray" Margin="2,4,0,0"/>
+            <TextBlock x:Name="BookIntro" FontSize="13" Margin="2,6,0,0" TextWrapping="Wrap"
+                       MaxHeight="100" TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Padding="12,8">
+            <Button x:Name="ShelfBtn" Content="加入书架" Click="OnShelfClick" FontSize="14"/>
+            <Button x:Name="OfflineBtn" Content="离线全文" Click="OnOfflineClick" Margin="10,0,0,0" FontSize="14"/>
+            <ProgressRing x:Name="OfflineBusy" Width="20" Height="20" Margin="10,0,0,0" IsActive="False"/>
+        </StackPanel>
+
+        <ListView x:Name="ChapterList" Grid.Row="3" IsItemClickEnabled="True" ItemClick="OnChapterClick" Padding="8">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding Title}" FontSize="15" Margin="0,6" TextTrimming="CharacterEllipsis"/>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <TextBlock x:Name="StatusHint" Grid.Row="3" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Foreground="Gray" Text="" TextAlignment="Center"/>
+        <ProgressRing x:Name="Busy" Grid.Row="3" HorizontalAlignment="Center" VerticalAlignment="Center"
+                      IsActive="False"/>
+    </Grid>
+</Page>

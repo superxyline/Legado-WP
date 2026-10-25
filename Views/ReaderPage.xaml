@@ -1,0 +1,82 @@
+<Page
+    x:Class="legado_wp.Views.ReaderPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="#FFF7F3E8">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Background="#FFEFE7D0" Padding="12,6">
+            <TextBlock x:Name="ChapterTitle" FontSize="14" Foreground="#FF6D5B2F"
+                       TextTrimming="CharacterEllipsis"/>
+        </Border>
+
+        <!-- 滚动模式 -->
+        <ScrollViewer x:Name="Scroller" Grid.Row="1" Padding="16,12">
+            <TextBlock x:Name="Content" FontSize="21" LineHeight="38" TextWrapping="Wrap"/>
+        </ScrollViewer>
+
+        <!-- 平移覆盖 / 翻页动画 模式 -->
+        <Grid x:Name="PagerGrid" Grid.Row="1" Visibility="Collapsed"
+              ManipulationMode="TranslateX"
+              ManipulationDelta="OnManipulationDelta"
+              ManipulationCompleted="OnManipulationCompleted"
+              Tapped="OnPagerTapped">
+            <Grid.RenderTransform>
+                <TranslateTransform x:Name="PagerShift"/>
+            </Grid.RenderTransform>
+            <TextBlock x:Name="PagerContent" FontSize="21" LineHeight="38" TextWrapping="Wrap"
+                       Padding="16,12"/>
+        </Grid>
+
+        <TextBlock x:Name="Footer" Grid.Row="2" FontSize="11" Foreground="#FF9A8B60"
+                   Padding="16,2" Text=""/>
+
+        <!-- 阅读控制行 -->
+        <Grid Grid.Row="3" Background="#FFEFE7D0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Button x:Name="PrevBtn" Grid.Column="0" Content="上一章" Background="Transparent" Click="OnPrev" FontSize="13"/>
+            <Button Grid.Column="1" Content="A-" Background="Transparent" Click="OnFontDown" FontSize="13"/>
+            <Button Grid.Column="2" Content="A+" Background="Transparent" Click="OnFontUp" FontSize="13"/>
+            <Button x:Name="NextBtn" Grid.Column="3" Content="下一章" Background="Transparent" Click="OnNext" FontSize="13"/>
+        </Grid>
+
+        <!-- 导航/工具行 -->
+        <Grid Grid.Row="4" Background="#FFE8DDBB">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" Content="目录" Background="Transparent" Click="OnToc" FontSize="13"/>
+            <Button Grid.Column="1" Content="排版" Background="Transparent" Click="OnLayoutClick" FontSize="13">
+                <Button.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="上下滑动" Click="OnModeScroll"/>
+                        <MenuFlyoutItem Text="平移覆盖" Click="OnModeCover"/>
+                        <MenuFlyoutItem Text="翻页动画" Click="OnModeCurl"/>
+                    </MenuFlyout>
+                </Button.Flyout>
+            </Button>
+            <Button Grid.Column="2" Content="书签" Background="Transparent" Click="OnBookmarkClick" FontSize="13">
+                <Button.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="添加书签（本章）" Click="OnAddBookmark"/>
+                        <MenuFlyoutItem Text="查看书签…" Click="OnShowBookmarks"/>
+                    </MenuFlyout>
+                </Button.Flyout>
+            </Button>
+        </Grid>
+    </Grid>
+</Page>

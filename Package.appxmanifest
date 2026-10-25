@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  IgnorableNamespaces="uap mp">
+  <Identity Name="5f6a8b9c-legado-wp" Publisher="CN=legado-wp" Version="0.0.11.0" />
+  <mp:PhoneIdentity PhoneProductId="5f6a8b9c-1d2e-3f4a-9b8c-7d6e5f4a3b2c" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
+  <Properties>
+    <DisplayName>legado-wp</DisplayName>
+    <PublisherDisplayName>legado-wp</PublisherDisplayName>
+    <Logo>Assets\Logo50.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.15063.0" MaxVersionTested="10.0.16299.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="x-generate"/>
+  </Resources>
+  <Applications>
+    <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="legado_wp.App">
+      <uap:VisualElements
+        DisplayName="阅读" Description="legado-wp 阅读器"
+        BackgroundColor="#0078D7"
+        Square150x150Logo="Assets\Logo150.png"
+        Square44x44Logo="Assets\Logo44.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\LogoWide.png" Square310x310Logo="Assets\Logo310.png" Square71x71Logo="Assets\Logo71.png">
+        </uap:DefaultTile>
+        <uap:SplashScreen Image="Assets\Splash.png" BackgroundColor="#0078D7"/>
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <Capability Name="internetClient" />
+  </Capabilities>
+</Package>
