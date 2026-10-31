@@ -7,6 +7,7 @@ using Windows.Media.MediaProperties;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
 using legado_wp.Core;
@@ -34,7 +35,30 @@ namespace legado_wp.Views
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
+            ApplyPreviewTransform();
             await StartCameraAsync();
+        }
+
+        /// <summary>
+        /// 竖屏预览方向修正：UWP 16299 无 SetPreviewRotationAsync（WP8.1 专有 API），
+        /// 相机传感器横向输出，CaptureElement 直接显示会横竖颠倒。
+        /// 把元素宽高对调横放 + 顺时针转 90°（RenderTransform），旋转后足迹正好铺满竖屏。
+        /// 只影响预览显示；解码帧仍取原始横向画面（ZXing AutoRotate 自动兼容旋转）。
+        /// </summary>
+        private void ApplyPreviewTransform()
+        {
+            try
+            {
+                var w = Window.Current.Bounds.Width;
+                var h = Window.Current.Bounds.Height;
+                Preview.Width = h;
+                Preview.Height = w;
+                Preview.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
+                Preview.RenderTransform = new RotateTransform { Angle = 90 };
+                Preview.HorizontalAlignment = HorizontalAlignment.Center;
+                Preview.VerticalAlignment = VerticalAlignment.Center;
+            }
+            catch { /* 桌面或异常尺寸忽略 */ }
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
