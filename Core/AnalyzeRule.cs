@@ -11,7 +11,7 @@ namespace legado_wp.Core
 
     /// <summary>
     /// 规则引擎入口（对照 Kotlin AnalyzeRuleCore.kt，M1 范围）。
-    /// M1 边界：{{js}}/<js> 段切分但不执行（stub 返回空）；XPath 不实现（返回空）。
+    /// 0.0.12.0 起：XPath 走 AnalyzeByXPath（书源常用子集）；&lt;js&gt; 整段规则仍为 stub。
     /// </summary>
     public class AnalyzeRule
     {
@@ -325,8 +325,7 @@ namespace legado_wp.Core
                 case RuleMode.Json:
                     return new AnalyzeByJsonPath(result).GetString(rule);
                 case RuleMode.XPath:
-                    _unsupported.Add("XPath");
-                    return "";
+                    return new AnalyzeByXPath(result).GetString(rule) ?? "";
                 case RuleMode.Regex:
                     return ApplyRegex(result.ToString(), rule);
                 default:
@@ -362,7 +361,7 @@ namespace legado_wp.Core
                             .Select(t => t?.ToString()));
                         break;
                     case RuleMode.XPath:
-                        _unsupported.Add("XPath");
+                        result.AddRange(new AnalyzeByXPath(content).GetStringList(sr.Rule));
                         break;
                     case RuleMode.Js:
                         _unsupported.Add("<js>");
@@ -390,7 +389,8 @@ namespace legado_wp.Core
                         result.AddRange(new AnalyzeByJsonPath(content).GetList(sr.Rule));
                         break;
                     case RuleMode.XPath:
-                        _unsupported.Add("XPath");
+                        result.AddRange(new AnalyzeByXPath(content).GetElements(sr.Rule)
+                            .Cast<object>());
                         break;
                     case RuleMode.Js:
                         _unsupported.Add("<js>");

@@ -75,6 +75,11 @@ namespace legado_wp.Views
             }
         }
 
+        private void OnScanClick(object sender, RoutedEventArgs e)
+        {
+            Frame.Navigate(typeof(ScanPage));
+        }
+
         private async void OnToggle(object sender, RoutedEventArgs e)
         {
             if (_suppressToggle) return;

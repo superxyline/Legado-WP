@@ -179,5 +179,101 @@ namespace legado_wp.Core
                 && b.ChapterIndex == mark.ChapterIndex && b.PageIndex == mark.PageIndex);
             await SaveBookmarksAsync(list);
         }
+
+        // ---------------- 备份 / 恢复 ----------------
+
+        /// <summary>备份载荷：书源 + 书架 + 进度 + 书签 + 阅读器设置。</summary>
+        public class BackupPayload
+        {
+            public int Version { get; set; } = 1;
+            public string ExportedAt { get; set; }
+            public List<BookSource> Sources { get; set; }
+            public List<Book> Shelf { get; set; }
+            public Dictionary<string, int> Progress { get; set; }
+            public List<Bookmark> Bookmarks { get; set; }
+            public double? ReaderFontSize { get; set; }
+            public string ReaderMode { get; set; }
+        }
+
+        /// <summary>导出全部数据为备份 JSON 文本。</summary>
+        public static async Task<string> ExportBackupAsync()
+        {
+            var payload = new BackupPayload
+            {
+                ExportedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                Sources = await LoadSourcesAsync(),
+                Shelf = await LoadShelfAsync(),
+                Progress = await LoadProgressAsync(),
+                Bookmarks = await LoadBookmarksAsync()
+            };
+            try
+            {
+                var s = ApplicationData.Current.LocalSettings;
+                if (s.Values.ContainsKey("reader.fontSize"))
+                    payload.ReaderFontSize = (double)s.Values["reader.fontSize"];
+                payload.ReaderMode = s.Values["reader.mode"] as string;
+            }
+            catch { }
+            return JsonConvert.SerializeObject(payload, Formatting.Indented);
+        }
+
+        /// <summary>
+        /// 恢复备份。replace=true 整体替换；false 合并（书源/书架按主键去重，进度/书签并集，已有值不覆盖）。
+        /// 返回恢复摘要。
+        /// </summary>
+        public static async Task<string> ImportBackupAsync(string json, bool replace)
+        {
+            BackupPayload p;
+            try { p = JsonConvert.DeserializeObject<BackupPayload>(json); }
+            catch { throw new Exception("备份 JSON 解析失败"); }
+            if (p == null) throw new Exception("备份内容为空");
+
+            if (replace)
+            {
+                await SaveSourcesAsync(p.Sources ?? new List<BookSource>());
+                await SaveShelfAsync(p.Shelf ?? new List<Book>());
+                await SaveProgressAsync(p.Progress ?? new Dictionary<string, int>());
+                await SaveBookmarksAsync(p.Bookmarks ?? new List<Bookmark>());
+            }
+            else
+            {
+                var sources = await LoadSourcesAsync();
+                var srcKeys = new HashSet<string>(sources.Select(s => s.BookSourceUrl));
+                foreach (var src in p.Sources ?? new List<BookSource>())
+                    if (srcKeys.Add(src.BookSourceUrl)) sources.Add(src);
+                await SaveSourcesAsync(sources);
+
+                var shelf = await LoadShelfAsync();
+                var bookKeys = new HashSet<string>(shelf.Select(b => b.BookUrl));
+                foreach (var b in p.Shelf ?? new List<Book>())
+                    if (bookKeys.Add(b.BookUrl)) shelf.Add(b);
+                await SaveShelfAsync(shelf);
+
+                var progress = await LoadProgressAsync();
+                foreach (var kv in p.Progress ?? new Dictionary<string, int>())
+                    if (!progress.ContainsKey(kv.Key)) progress[kv.Key] = kv.Value;
+                await SaveProgressAsync(progress);
+
+                var marks = await LoadBookmarksAsync();
+                foreach (var m in p.Bookmarks ?? new List<Bookmark>())
+                    if (!marks.Any(x => x.BookUrl == m.BookUrl
+                        && x.ChapterIndex == m.ChapterIndex && x.PageIndex == m.PageIndex))
+                        marks.Add(m);
+                await SaveBookmarksAsync(marks);
+            }
+
+            try
+            {
+                var s = ApplicationData.Current.LocalSettings;
+                if (p.ReaderFontSize.HasValue) s.Values["reader.fontSize"] = p.ReaderFontSize.Value;
+                if (!string.IsNullOrEmpty(p.ReaderMode)) s.Values["reader.mode"] = p.ReaderMode;
+            }
+            catch { }
+
+            return "书源 " + (p.Sources?.Count ?? 0)
+                + " · 书架 " + (p.Shelf?.Count ?? 0)
+                + " · 进度 " + (p.Progress?.Count ?? 0)
+                + " · 书签 " + (p.Bookmarks?.Count ?? 0);
+        }
     }
 }

@@ -28,8 +28,9 @@
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" Padding="8,0,8,8">
-            <TextBox x:Name="UrlBox" PlaceholderText="书源 JSON 的 URL" Width="260"/>
+            <TextBox x:Name="UrlBox" PlaceholderText="书源 JSON 的 URL" Width="200"/>
             <Button Content="导入" Margin="8,0,0,0" Click="OnImportClick"/>
+            <Button Content="扫码导入" Margin="8,0,0,0" Click="OnScanClick"/>
         </StackPanel>
 
         <ListView x:Name="SourceList" Grid.Row="3" Padding="8" SelectionMode="Single">

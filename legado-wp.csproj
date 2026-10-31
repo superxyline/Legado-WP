@@ -59,8 +59,10 @@
     <Compile Include="Core\Entities.cs" />
     <Compile Include="Core\RuleSplit.cs" />
     <Compile Include="Core\AnalyzeByJSoup.cs" />
+    <Compile Include="Core\AnalyzeByXPath.cs" />
     <Compile Include="Core\Analyzers.cs" />
     <Compile Include="Core\AnalyzeRule.cs" />
+    <Compile Include="Core\XPathCases.cs" />
     <Compile Include="Core\M1Cases.cs" />
     <Compile Include="Core\AnalyzeUrl.cs" />
     <Compile Include="Core\HttpHelper.cs" />
@@ -79,6 +81,7 @@
     <Compile Include="Views\TocPage.xaml.cs"><DependentUpon>TocPage.xaml</DependentUpon></Compile>
     <Compile Include="Views\ReaderPage.xaml.cs"><DependentUpon>ReaderPage.xaml</DependentUpon></Compile>
     <Compile Include="Views\SourcesPage.xaml.cs"><DependentUpon>SourcesPage.xaml</DependentUpon></Compile>
+    <Compile Include="Views\ScanPage.xaml.cs"><DependentUpon>ScanPage.xaml</DependentUpon></Compile>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App.xaml.cs"><DependentUpon>App.xaml</DependentUpon></Compile>
@@ -113,6 +116,15 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="Views\ScanPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+  </ItemGroup>
+  <ItemGroup>
+    <SDKReference Include="WindowsMobile, Version=10.0.16299.0">
+      <Name>Windows Mobile Extensions for the UWP</Name>
+    </SDKReference>
   </ItemGroup>
   <ItemGroup>
     <AppxManifest Include="Package.appxmanifest">
@@ -146,6 +158,9 @@
     </PackageReference>
     <PackageReference Include="Newtonsoft.Json">
       <Version>10.0.3</Version>
+    </PackageReference>
+    <PackageReference Include="ZXing.Net">
+      <Version>0.16.9</Version>
     </PackageReference>
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' ">

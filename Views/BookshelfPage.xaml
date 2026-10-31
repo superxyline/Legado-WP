@@ -36,6 +36,8 @@
         <CommandBar Grid.Row="1" VerticalAlignment="Bottom">
             <AppBarButton Label="搜索" Icon="Find" Click="OnSearchClick"/>
             <AppBarButton Label="书源" Icon="Library" Click="OnSourcesClick"/>
+            <AppBarButton Label="备份" Icon="Save" Click="OnBackupClick"/>
+            <AppBarButton Label="恢复" Icon="OpenFile" Click="OnRestoreClick"/>
             <AppBarButton Label="自检" Icon="Setting" Click="OnProbeClick"/>
         </CommandBar>
     </Grid>

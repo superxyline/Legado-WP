@@ -29,10 +29,13 @@ Legado-WP 是一个用 C# / XAML 从零实现的 Windows 10 (UWP) 小说阅读�
 | 书签 | 按章（分页模式下含页码）添加/列表/一键跳转 |
 | 阅读进度 | 自动记忆，书架点击直达上次位置 |
 | 离线全文 | 逐章下载缓存（含目录与书源自包含，断网可读，书源删除也可读） |
-| 书架 | 长按移出（保留离线数据） |
+| 书架 | 长按移出（保留离线数据）；**备份/恢复**（书源+书架+进度+书签+阅读设置导出 JSON 文件，恢复支持合并/替换两种策略） |
+| 备份恢复 | 书架页「备份」导出全部数据为 JSON；「恢复」从文件导入，可选合并或整体替换 |
+| 扫码导入 | 书源页「扫码导入」：相机扫二维码识别书源 URL（或书源 JSON 本体）直接导入；PC 端任意二维码工具生成即可 |
+| 阅读器增强 | 实体相机键翻页（Lumia 两段快门：半按=上一页，全按=下一页）；阅读时屏幕常亮 |
 | 编码 | GBK/GB2312 站点自动识别与请求编码 |
 | JS 引擎 | Jint 执行书源中的 `{{js}}` / `<js>` / `@js:` 片段，内置 `java.*` 桥核心集（md5/SHA/HMAC/AES/DES/RSA、base64/hex、`java.ajax`、Cookie 等） |
-| 规则语法 | Default（class/tag/id/text/children + 新旧索引）、`@CSS:`、`$.` JSONPath、`##` 替换、`@put/@get` 变量、`&&/\|\|/%%` 组合 |
+| 规则语法 | Default（class/tag/id/text/children + 新旧索引）、`@CSS:`、`$.` JSONPath、**XPath（`@XPath:` / `/` 开头，覆盖书源常用子集：`//tag`、`[@a='v']`、`contains()/starts-with()`、`[n]/[last()]`、`text()`、`@attr`、`\|` 并集）**、`##` 替换、`@put/@get` 变量、`&&/\|\|/%%` 组合 |
 
 ## 书源兼容说明
 
@@ -43,7 +46,7 @@ Legado-WP 是一个用 C# / XAML 从零实现的 Windows 10 (UWP) 小说阅读�
 - 依赖 `webView` / `startBrowser` 的书源（需要内置浏览器，暂未实现）
 - `java.*` 桥未覆盖的方法（压缩包读取、文件系统、`queryTTF` 字体反爬等）
 - 繁简转换 `java.t2s / s2t`（暂原样返回）
-- XPath 规则（`@XPath:` / `/` 开头，暂未实现）
+- 音量键翻页：Windows 10 Mobile 的 UWP 不向应用暴露音量键事件（系统保留），已改用 Lumia 实体两段相机键翻页
 
 **选源建议**：优先使用无 JS 或轻 JS 的 HTTP(S) 书源，体验最佳。部分仅 TLS 1.3 的站点受限于 WP10 系统网络栈无法访问。
 
@@ -54,7 +57,7 @@ Legado-WP 是一个用 C# / XAML 从零实现的 Windows 10 (UWP) 小说阅读�
 ### 零、快速部署（下载预编译包，推荐）
 
 不想本地编译的话，直接去 [Releases](https://github.com/superxyline/Legado-WP/releases) 页面下载
-最新版部署包（如 `legado-wp-0.0.3.0-deploy.zip`），解压后按包内 `部署说明.md` 操作即可。
+最新版部署包（如 `legado-wp-0.0.12.0-deploy.zip`），解压后按包内 `部署说明.md` 操作即可。
 包内已包含：已签名的 ARM appx、全部依赖包、签名证书（`.cer`，仅公钥）和一键安装脚本。
 
 > **部署遇到困难？可以直接让 AI Agent 协助。** 把本 README、`部署说明.md`、
@@ -119,7 +122,7 @@ Import-Certificate .\legado-wp.cer -CertStoreLocation Cert:\LocalMachine\Trusted
 $deploy = 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\WinAppDeployCmd.exe'
 
 # 扫到手机 IP 后：
-& $deploy install -file .\AppPackages\legado-wp_0.0.3.0_ARM_Test\legado-wp_0.0.3.0_ARM.appx `
+& $deploy install -file .\AppPackages\legado-wp_0.0.12.0_ARM_Test\legado-wp_0.0.12.0_ARM.appx `
   -ip <手机IP> -pin <配对码>
 ```
 
@@ -152,13 +155,21 @@ CodeBuddy / Cursor / Copilot 等），它能代你定位并给出修复命令：
 
 ## 路线图
 
-- [ ] XPath 规则支持（`@XPath:`）
-- [ ] `java.*` 桥扩展（压缩包、字体反爬 `queryTTF`）
-- [ ] 繁简转换（t2s / s2t）
-- [ ] 夜间模式 / 主题色
+- [x] XPath 规则支持（`@XPath:`，书源常用子集）
+- [x] 备份 / 恢复（书源+书架+进度+书签+阅读设置）
+- [x] 扫码导入书源（相机二维码识别）
+- [ ] `java.*` 桥扩展（压缩包解压、ajaxAll、字体反爬 `queryTTF`）
+- [ ] 替换净化规则（ReplaceRule，广告/错字批量净化）
+- [ ] 阅读主题 / 排版配置（行距、缩进、背景色、页眉页脚）
+- [ ] jsLib 共享作用域 + 书源变量（社区加密类书源依赖）
+- [ ] 自动翻页 / 自动滚动
+- [ ] 系统语音朗读（TTS）
+- [ ] 书源校验（批量体检，禁用坏源）
+- [ ] 章节更新检测（打开应用时批量检查新章）
+- [ ] WebDAV 备份与进度同步
 - [ ] 本地 TXT / EPUB
 - [ ] 发现页（exploreUrl）
-- [ ] 仿真纸页翻页动画（Composition 变形）
+- [ ] 繁简转换（t2s / s2t）
 - [ ] 断点续传提示与离线管理页
 
 ## 架构速览
@@ -168,6 +179,7 @@ Core/
   Entities.cs        书源实体（BookSource + 规则子对象，Newtonsoft 反序列化）
   RuleSplit.cs       规则切分状态机（&&/||/%%，跳过平衡组）+ 结果合并
   AnalyzeByJSoup.cs  Default 语法 + @CSS: + 全套索引（对照 AnalyzeByJSoup.kt）
+  AnalyzeByXPath.cs  迷你 XPath 引擎（书源常用子集，无第三方 XPath 依赖）
   Analyzers.cs       JSONPath（Newtonsoft）+ 正则多段
   AnalyzeRule.cs     引擎入口：Mode 分发 / <js>{{}} 切分 / $n 组替换 / ## 替换
   AnalyzeUrl.cs      URL 规则（POST/GET/charset/headers/option JSON/{{key}}）

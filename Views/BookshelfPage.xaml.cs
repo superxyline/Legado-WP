@@ -56,6 +56,89 @@ namespace legado_wp.Views
             Frame.Navigate(typeof(SourcesPage));
         }
 
+        // ---------------- 备份 / 恢复 ----------------
+
+        /// <summary>导出书源+书架+进度+书签为 JSON 文件（用户选位置保存）。</summary>
+        private async void OnBackupClick(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var json = await Storage.ExportBackupAsync();
+                var picker = new Windows.Storage.Pickers.FileSavePicker
+                {
+                    SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary
+                };
+                picker.FileTypeChoices.Add("备份文件", new List<string> { ".json" });
+                picker.SuggestedFileName = "legado-wp-backup-" + DateTime.Now.ToString("yyyyMMdd-HHmm");
+                var file = await picker.PickSaveFileAsync();
+                if (file == null) return;
+                await Windows.Storage.FileIO.WriteTextAsync(file, json);
+                var dlg = new ContentDialog
+                {
+                    Title = "备份完成",
+                    Content = "已保存到 " + file.Name,
+                    CloseButtonText = "好"
+                };
+                await dlg.ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                var dlg = new ContentDialog
+                {
+                    Title = "备份失败",
+                    Content = ex.Message,
+                    CloseButtonText = "好"
+                };
+                await dlg.ShowAsync();
+            }
+        }
+
+        /// <summary>从备份 JSON 恢复（选文件后询问合并或替换）。</summary>
+        private async void OnRestoreClick(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var picker = new Windows.Storage.Pickers.FileOpenPicker
+                {
+                    SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary
+                };
+                picker.FileTypeFilter.Add(".json");
+                var file = await picker.PickSingleFileAsync();
+                if (file == null) return;
+                var json = await Windows.Storage.FileIO.ReadTextAsync(file);
+
+                var dlg = new ContentDialog
+                {
+                    Title = "恢复备份",
+                    Content = "合并 = 与现有数据并存（推荐）；替换 = 清空后导入备份内容。",
+                    PrimaryButtonText = "合并",
+                    SecondaryButtonText = "替换",
+                    CloseButtonText = "取消"
+                };
+                var result = await dlg.ShowAsync();
+                if (result == ContentDialogResult.None) return;
+                var summary = await Storage.ImportBackupAsync(json, result == ContentDialogResult.Secondary);
+                await ReloadAsync();
+                var done = new ContentDialog
+                {
+                    Title = "恢复完成",
+                    Content = summary,
+                    CloseButtonText = "好"
+                };
+                await done.ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                var dlg = new ContentDialog
+                {
+                    Title = "恢复失败",
+                    Content = ex.Message,
+                    CloseButtonText = "好"
+                };
+                await dlg.ShowAsync();
+            }
+        }
+
         private void OnProbeClick(object sender, RoutedEventArgs e)
         {
             Frame.Navigate(typeof(MainPage));

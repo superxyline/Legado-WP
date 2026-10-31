@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Windows.Phone.UI.Input;
 using Windows.Storage;
+using Windows.System.Display;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
@@ -15,6 +17,7 @@ namespace legado_wp.Views
     /// <summary>
     /// 阅读器：三种排版模式（上下滑动 / 平移覆盖 / 翻页动画），字号调节，进度自动保存。
     /// 平移覆盖/翻页动画按屏幕与字号估算分页，左右滑动或点按两侧翻页。
+    /// 0.0.12.0：实体相机键翻页（半按=上一页/全按=下一页）+ 阅读时屏幕常亮。
     /// </summary>
     public sealed partial class ReaderPage : Page
     {
@@ -26,6 +29,9 @@ namespace legado_wp.Views
         private double _lineHeight = 38;
         private bool _busy;
         private string _chapterText = "";
+        private bool _keepOn = true;
+        private bool _volumeHintShown;
+        private DisplayRequest _displayRequest;
 
         private ReaderMode _mode = ReaderMode.Scroll;
         private List<string> _pages = new List<string>();
@@ -46,6 +52,7 @@ namespace legado_wp.Views
             {
                 var settings = ApplicationData.Current.LocalSettings;
                 _fontSize = (double?)settings.Values["reader.fontSize"] ?? 21;
+                _keepOn = (bool?)settings.Values["reader.keepOn"] ?? true;
                 var m = settings.Values["reader.mode"] as string;
                 switch (m)
                 {
@@ -69,6 +76,68 @@ namespace legado_wp.Views
             catch { }
         }
 
+        // ---------------- 屏幕常亮 & 相机键翻页 ----------------
+
+        private void AcquireDisplay()
+        {
+            try
+            {
+                if (_displayRequest == null) _displayRequest = new DisplayRequest();
+                _displayRequest.RequestActive();
+            }
+            catch { /* 桌面或受限环境忽略 */ }
+        }
+
+        private void ReleaseDisplay()
+        {
+            try { _displayRequest?.RequestRelease(); }
+            catch { }
+        }
+
+        /// <summary>
+        /// Lumia 实体两段相机键翻页（UWP 不暴露音量键事件，相机键是唯一可用的硬件翻页键）：
+        /// 半按=上一页，全按=下一页。无相机键的设备自动忽略。
+        /// </summary>
+        private void HookCameraKey(bool hook)
+        {
+            try
+            {
+                if (hook)
+                {
+                    HardwareButtons.CameraHalfPressed += OnCameraHalf;
+                    HardwareButtons.CameraPressed += OnCameraFull;
+                }
+                else
+                {
+                    HardwareButtons.CameraHalfPressed -= OnCameraHalf;
+                    HardwareButtons.CameraPressed -= OnCameraFull;
+                }
+            }
+            catch { /* 无移动扩展的设备忽略 */ }
+        }
+
+        private void OnCameraHalf(object sender, CameraEventArgs e)
+        {
+            if (_payload == null) return;
+            PrevPage();
+            if (!_volumeHintShown)
+            {
+                _volumeHintShown = true;
+                Footer.Text = "相机键翻页：半按=上一页，全按=下一页";
+            }
+        }
+
+        private void OnCameraFull(object sender, CameraEventArgs e)
+        {
+            if (_payload == null) return;
+            NextPage();
+            if (!_volumeHintShown)
+            {
+                _volumeHintShown = true;
+                Footer.Text = "相机键翻页：半按=上一页，全按=下一页";
+            }
+        }
+
         // ---------------- 导航 ----------------
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -78,6 +147,8 @@ namespace legado_wp.Views
             _index = _payload.StartIndex;
             ApplyFont();
             ApplyMode(false);
+            if (_keepOn) AcquireDisplay();
+            HookCameraKey(true);
             _ = LoadChapterAsync();
         }
 
@@ -85,6 +156,8 @@ namespace legado_wp.Views
         {
             SaveProgress();
             SaveSettings();
+            HookCameraKey(false);
+            ReleaseDisplay();
         }
 
         // ---------------- 模式 ----------------

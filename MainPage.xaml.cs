@@ -70,6 +70,9 @@ namespace legado_wp
                 // M3：JS 引擎 + java.* 桥
                 foreach (var line in await Core.M3Cases.Run()) Log(line);
 
+                // 0.0.12.0：XPath 迷你引擎
+                foreach (var line in Core.XPathCases.Run()) Log(line);
+
                 await FlushLogAsync();
             }
             catch (Exception ex)
