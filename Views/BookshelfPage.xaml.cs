@@ -96,7 +96,9 @@ namespace legado_wp.Views
             var list = q.OrderByDescending(b => string.IsNullOrEmpty(b.LastChapter) ? 0 : 1)
                 .ThenBy(b => b.Name).ToList();
             // 先清选中再换 ItemsSource，避免多选模式下替换列表触发崩溃
-            ShelfList.SelectedItems.Clear();
+            // （UWP 15063：单选模式下 SelectedItems.Clear() 会抛 0x8000FFFF，只在多选时清）
+            if (ShelfList.SelectionMode == ListViewSelectionMode.Multiple)
+                ShelfList.SelectedItems.Clear();
             ShelfList.ItemsSource = list;
             var empty = _shelf.Count == 0;
             EmptyHint.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;

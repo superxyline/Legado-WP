@@ -35,7 +35,9 @@ namespace legado_wp.Views
                 _sources = await Storage.LoadSourcesAsync();
 
                 step = "清空选中";
-                SourceList.SelectedItems.Clear();
+                // UWP 15063 坑：单选模式下 SelectedItems.Clear() 抛 0x8000FFFF，只在多选模式清
+                if (SourceList.SelectionMode == ListViewSelectionMode.Multiple)
+                    SourceList.SelectedItems.Clear();
 
                 step = "列表渲染";
                 SourceList.ItemsSource = _sources;
