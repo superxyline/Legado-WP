@@ -22,12 +22,37 @@ namespace legado_wp.Views
 
         public BookshelfPage()
         {
-            InitializeComponent();
+            try
+            {
+                InitializeComponent();
+            }
+            catch (Exception ex)
+            {
+                // 启动期 XAML 异常兜底：记录后不构造失败（老机型闪退诊断）
+                _ = LogLaunchCrashAsync("bookshelf-ctor", ex);
+            }
             Loaded += async (s, e) =>
             {
-                await ReloadAsync();
-                await AutoCheckAsync(false);
+                try
+                {
+                    await ReloadAsync();
+                    await AutoCheckAsync(false);
+                }
+                catch { /* 启动期加载失败不崩，下次进入重试 */ }
             };
+        }
+
+        internal static async Task LogLaunchCrashAsync(string tag, Exception ex)
+        {
+            try
+            {
+                var file = await Windows.Storage.ApplicationData.Current.LocalFolder.CreateFileAsync("crash.log",
+                    Windows.Storage.CreationCollisionOption.OpenIfExists);
+                await Windows.Storage.FileIO.AppendTextAsync(file,
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + tag + "] "
+                    + ex.GetType().Name + ": " + ex.Message + "\r\n---\r\n");
+            }
+            catch { }
         }
 
         // ---------------- 列表与过滤 ----------------

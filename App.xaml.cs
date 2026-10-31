@@ -25,6 +25,8 @@ namespace legado_wp
                         + ": " + e.Message + "\r\n" + (e.Exception.StackTrace ?? "") + "\r\n---\r\n");
                 }
                 catch { }
+                // 0.0.14.9：异常不再直接杀死进程（老机型上启动期异常闪退时保住界面）
+                e.Handled = true;
             };
         }
 
@@ -93,7 +95,25 @@ namespace legado_wp
                     probe = f != null;
                 }
                 catch { probe = false; }
-                frame.Navigate(probe ? typeof(MainPage) : typeof(Views.BookshelfPage), e.Arguments);
+                try
+                {
+                    frame.Navigate(probe ? typeof(MainPage) : typeof(Views.BookshelfPage), e.Arguments);
+                }
+                catch (Exception navEx)
+                {
+                    // 启动导航兜底：书架页崩溃则退到自检页，至少保证 App 能打开
+                    try
+                    {
+                        var folder = Windows.Storage.ApplicationData.Current.LocalFolder;
+                        var file = await folder.CreateFileAsync("crash.log",
+                            Windows.Storage.CreationCollisionOption.OpenIfExists);
+                        await Windows.Storage.FileIO.AppendTextAsync(file,
+                            DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [launch] "
+                            + navEx.GetType().Name + ": " + navEx.Message + "\r\n---\r\n");
+                        frame.Navigate(typeof(MainPage));
+                    }
+                    catch { }
+                }
             }
             Window.Current.Activate();
         }
