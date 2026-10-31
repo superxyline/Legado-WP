@@ -23,6 +23,30 @@ namespace legado_wp.Core
     {
         public string TocUrl { get; set; }
         public long WordCount { get; set; }
+
+        // ---- 0.0.14.0 书架增强 / 本地书 / 更新检测 ----
+        /// <summary>书架分组（空 = 未分组）。</summary>
+        public string Group { get; set; }
+        /// <summary>本地书类型：0=网络书 1=TXT 2=EPUB。</summary>
+        public int LocalType { get; set; }
+        /// <summary>本地书数据目录（LocalFolder/LocalBooks/{id}）。</summary>
+        public string LocalPath { get; set; }
+        /// <summary>上次已知章节数（更新检测基准）。</summary>
+        public int ChapterCount { get; set; }
+        /// <summary>上次更新检测时间（Unix ms）。</summary>
+        public long LastCheck { get; set; }
+        /// <summary>检测到的新章数（书架角标显示）。</summary>
+        public int NewCount { get; set; }
+        /// <summary>更新角标（书架列表绑定用）。</summary>
+        public string UpdateBadge
+        {
+            get
+            {
+                if (LocalType > 0) return "[本地]";
+                if (NewCount > 0) return "🆕 +" + NewCount + "章";
+                return "";
+            }
+        }
     }
 
     public class BookChapter

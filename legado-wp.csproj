@@ -66,6 +66,10 @@
     <Compile Include="Core\ReplaceRule.cs" />
     <Compile Include="Core\ContentProcessor.cs" />
     <Compile Include="Core\Round1Cases.cs" />
+    <Compile Include="Core\LocalBookStore.cs" />
+    <Compile Include="Core\CheckSource.cs" />
+    <Compile Include="Core\UpdateHelper.cs" />
+    <Compile Include="Core\Round2Cases.cs" />
     <Compile Include="Core\M1Cases.cs" />
     <Compile Include="Core\AnalyzeUrl.cs" />
     <Compile Include="Core\HttpHelper.cs" />

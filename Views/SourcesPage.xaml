@@ -24,6 +24,7 @@
             <Button Content="反选" FontSize="12" Margin="8,0,0,0" Click="OnInvertClick"/>
             <Button Content="启用" FontSize="12" Margin="8,0,0,0" Click="OnBatchEnableClick"/>
             <Button Content="禁用" FontSize="12" Margin="8,0,0,0" Click="OnBatchDisableClick"/>
+            <Button Content="校验" FontSize="12" Margin="8,0,0,0" Click="OnCheckClick"/>
             <Button Content="删除所选" FontSize="12" Margin="8,0,0,0" Click="OnBatchDeleteClick"/>
         </StackPanel>
 

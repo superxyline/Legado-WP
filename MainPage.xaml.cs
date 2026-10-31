@@ -76,6 +76,9 @@ namespace legado_wp
                 // 0.0.13.0：净化规则 / java.* 扩展 / jsLib / 书源变量
                 foreach (var line in await Core.Round1Cases.Run()) Log(line);
 
+                // 0.0.14.0：本地书 TXT/EPUB / 书架语义
+                foreach (var line in await Core.Round2Cases.Run()) Log(line);
+
                 await FlushLogAsync();
             }
             catch (Exception ex)

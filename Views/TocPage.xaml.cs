@@ -56,6 +56,41 @@ namespace legado_wp.Views
             BookMeta.Text = (book.Author ?? "") + " · " + (book.LastChapter ?? "");
             BookIntro.Text = string.IsNullOrEmpty(book.Intro) ? "（暂无简介）" : book.Intro;
 
+            // 本地书（TXT/EPUB）：目录从本地 meta 读，离线/换源按钮隐藏
+            if (LocalBookStore.IsLocal(book))
+            {
+                Busy.IsActive = true;
+                try
+                {
+                    var chapters = await LocalBookStore.GetTocAsync(book);
+                    if (chapters.Count == 0) { StatusHint.Text = "本地书数据丢失（" + book.LocalPath + "）"; return; }
+                    var progress = await Storage.LoadProgressAsync();
+                    int start;
+                    progress.TryGetValue(book.BookUrl, out start);
+                    if (start >= chapters.Count) start = 0;
+                    ChapterList.ItemsSource = chapters;
+                    ChapterList.ScrollIntoView(chapters[Math.Max(0, start - 1)]);
+                    BookMeta.Text = (book.Author ?? "") + " · 本地书 · " + chapters.Count + " 章";
+                    StatusHint.Text = "";
+                    _payload = new TocPayload { Book = book, Source = null, Chapters = chapters, StartIndex = start };
+                    _inShelf = (await Storage.LoadShelfAsync()).Any(b => b.BookUrl == book.BookUrl);
+                    UpdateShelfButton();
+                    OfflineBtn.Visibility = Visibility.Collapsed;
+                    ChangeSourceBtn.Visibility = Visibility.Collapsed;
+                    if (AutoReadOnce)
+                    {
+                        AutoReadOnce = false;
+                        Frame.Navigate(typeof(ReaderPage), _payload);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    StatusHint.Text = "本地书加载失败：" + ex.Message;
+                }
+                finally { Busy.IsActive = false; }
+                return;
+            }
+
             Busy.IsActive = true;
             StatusHint.Text = "正在加载目录…";
             try
@@ -137,7 +172,7 @@ namespace legado_wp.Views
 
         private async void OnOfflineClick(object sender, RoutedEventArgs e)
         {
-            if (_payload == null) return;
+            if (_payload == null || LocalBookStore.IsLocal(_payload.Book)) return;
             OfflineBusy.IsActive = true;
             var wb = new WebBook();
             var chapters = _payload.Chapters;
@@ -180,7 +215,7 @@ namespace legado_wp.Views
         /// </summary>
         private async void OnChangeSourceClick(object sender, RoutedEventArgs e)
         {
-            if (_payload == null) return;
+            if (_payload == null || LocalBookStore.IsLocal(_payload.Book)) return;
             var key = (_payload.Book.Name ?? "").Trim();
             if (string.IsNullOrEmpty(key)) return;
 

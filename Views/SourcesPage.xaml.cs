@@ -199,6 +199,89 @@ namespace legado_wp.Views
             StatusHint.Visibility = Visibility.Visible;
         }
 
+        /// <summary>
+        /// 校验所选书源：逐源跑 搜索→详情→目录→正文，弹窗显示进度，
+        /// 完成后列出失败源（可一键禁用失败源）。
+        /// </summary>
+        private async void OnCheckClick(object sender, RoutedEventArgs e)
+        {
+            var picked = SourceList.SelectedItems.Cast<BookSource>().ToList();
+            if (picked.Count == 0)
+            {
+                StatusHint.Text = "先勾选书源";
+                StatusHint.Visibility = Visibility.Visible;
+                return;
+            }
+
+            var progress = new ProgressBar { Maximum = picked.Count, Value = 0, Margin = new Thickness(0, 4, 0, 0) };
+            var status = new TextBlock { Text = "准备校验…", TextWrapping = TextWrapping.Wrap, FontSize = 13 };
+            var panel = new StackPanel();
+            panel.Children.Add(progress);
+            panel.Children.Add(status);
+
+            var dlg = new ContentDialog
+            {
+                Title = "书源校验（" + picked.Count + " 个）",
+                Content = panel,
+                CloseButtonText = "后台继续",
+                SecondaryButtonText = "停止"
+            };
+            var cancelled = false;
+            dlg.SecondaryButtonClick += (s, args) => cancelled = true;
+            // 不 await 弹窗（校验在后台跑，弹窗可先关）
+            var showTask = dlg.ShowAsync();
+
+            var ok = 0;
+            var failed = new List<CheckSource.Result>();
+            var done = 0;
+            try
+            {
+                await CheckSource.CheckAllAsync(picked, "我的", 3,
+                    r =>
+                    {
+                        done++;
+                        if (r.Ok) ok++; else failed.Add(r);
+                        _ = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                        {
+                            progress.Value = done;
+                            status.Text = done + "/" + picked.Count + " 通过 " + ok
+                                + (failed.Count > 0 ? " · 最近失败：" + r.Source.BookSourceName : "");
+                        });
+                    },
+                    new System.Threading.CancellationTokenSource(180000).Token);
+            }
+            catch (OperationCanceledException) { cancelled = true; }
+            catch (Exception ex)
+            {
+                status.Text = "校验异常：" + ex.Message;
+            }
+
+            // 总结
+            var summary = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap,
+                Text = (cancelled ? "已停止。" : "校验完成。")
+                    + "通过 " + ok + "/" + picked.Count
+                    + (failed.Count > 0 ? "\n\n失败：" + string.Join("\n", failed.Select(f =>
+                        "· " + f.Display + " — " + f.Error)) : "")
+            };
+            var doneDlg = new ContentDialog
+            {
+                Title = "校验结果",
+                Content = new ScrollViewer { Content = summary, MaxHeight = 400 },
+                PrimaryButtonText = failed.Count > 0 ? "禁用失败源" : "好",
+                CloseButtonText = "关闭"
+            };
+            var result = await doneDlg.ShowAsync();
+            if (result == ContentDialogResult.Primary && failed.Count > 0)
+            {
+                var badUrls = new HashSet<string>(failed.Select(f => f.Source.BookSourceUrl));
+                foreach (var s in _sources.Where(s => badUrls.Contains(s.BookSourceUrl))) s.Enabled = false;
+                await Storage.SaveSourcesAsync(_sources);
+                await ReloadAsync();
+            }
+        }
+
         private async void OnBatchDeleteClick(object sender, RoutedEventArgs e)
         {
             var picked = SourceList.SelectedItems.Cast<BookSource>().ToList();

@@ -5,16 +5,41 @@
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <ListView x:Name="ShelfList" IsItemClickEnabled="True" ItemClick="OnBookClick" Padding="8">
+        <!-- 搜索 + 分组过滤 -->
+        <StackPanel Grid.Row="0" Padding="8,8,8,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="SearchBox" PlaceholderText="搜索书架（书名/作者）" TextChanged="OnSearchTextChanged"/>
+                <ComboBox x:Name="GroupFilter" Grid.Column="1" Margin="8,0,0,0" MinWidth="120"
+                          SelectionChanged="OnGroupFilterChanged"/>
+            </Grid>
+            <TextBlock x:Name="UpdateStatus" Text="" FontSize="12" Foreground="Gray" Margin="2,4,0,2"/>
+        </StackPanel>
+
+        <!-- 批量管理操作栏（管理模式可见） -->
+        <StackPanel x:Name="ManageBar" Grid.Row="1" Orientation="Horizontal" Padding="8,4" Visibility="Collapsed">
+            <Button Content="全选" FontSize="12" Click="OnSelectAllClick"/>
+            <Button Content="设置分组" FontSize="12" Margin="8,0,0,0" Click="OnBatchGroupClick"/>
+            <Button Content="移出书架" FontSize="12" Margin="8,0,0,0" Click="OnBatchRemoveClick"/>
+            <Button Content="完成" FontSize="12" Margin="8,0,0,0" Click="OnManageClick"/>
+        </StackPanel>
+
+        <ListView x:Name="ShelfList" Grid.Row="2" IsItemClickEnabled="True" ItemClick="OnBookClick" Padding="8">
             <ListView.ItemTemplate>
                 <DataTemplate>
                     <StackPanel Margin="0,8" Holding="OnBookHolding" RightTapped="OnBookRightTapped">
                         <StackPanel.ContextFlyout>
                             <MenuFlyout>
+                                <MenuFlyoutItem Text="设置分组" Click="OnGroupMenu"/>
                                 <MenuFlyoutItem Text="移出书架" Click="OnRemoveMenu"/>
                             </MenuFlyout>
                         </StackPanel.ContextFlyout>
@@ -23,23 +48,36 @@
                             <Run Text="{Binding Author}"/>
                             <Run Text=" · "/>
                             <Run Text="{Binding LastChapter}"/>
+                            <Run Text="{Binding UpdateBadge}" Foreground="#FFC62828" FontWeight="SemiBold"/>
                         </TextBlock>
                     </StackPanel>
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
 
-        <TextBlock x:Name="EmptyHint" Text="书架空空如也&#x0a;点下方「搜索」找一本书加入吧" 
+        <TextBlock x:Name="EmptyHint" Grid.Row="2" Text="书架空空如也&#x0a;点下方「搜索」找一本书，或「导入」本地 TXT/EPUB"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    TextAlignment="Center" Foreground="Gray" FontSize="15"/>
 
-        <CommandBar Grid.Row="1" VerticalAlignment="Bottom">
+        <CommandBar Grid.Row="3" VerticalAlignment="Bottom">
             <AppBarButton Label="搜索" Icon="Find" Click="OnSearchClick"/>
             <AppBarButton Label="书源" Icon="Library" Click="OnSourcesClick"/>
-            <AppBarButton Label="备份" Icon="Save" Click="OnBackupClick"/>
-            <AppBarButton Label="恢复" Icon="OpenFile" Click="OnRestoreClick"/>
-            <AppBarButton Label="净化" Icon="Highlight" Click="OnReplaceClick"/>
-            <AppBarButton Label="自检" Icon="Setting" Click="OnProbeClick"/>
+            <AppBarButton Label="导入" Icon="Add" Click="OnImportClick">
+                <Button.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="导入本地 TXT" Click="OnImportTxt"/>
+                        <MenuFlyoutItem Text="导入 EPUB" Click="OnImportEpub"/>
+                    </MenuFlyout>
+                </Button.Flyout>
+            </AppBarButton>
+            <AppBarButton Label="更新" Icon="Refresh" Click="OnUpdateClick"/>
+            <CommandBar.SecondaryCommands>
+                <AppBarButton x:Name="ManageBtn" Label="批量管理" Click="OnManageClick"/>
+                <AppBarButton Label="备份" Click="OnBackupClick"/>
+                <AppBarButton Label="恢复" Click="OnRestoreClick"/>
+                <AppBarButton Label="净化规则" Click="OnReplaceClick"/>
+                <AppBarButton Label="自检" Click="OnProbeClick"/>
+            </CommandBar.SecondaryCommands>
         </CommandBar>
     </Grid>
 </Page>

@@ -507,17 +507,26 @@ namespace legado_wp.Views
             PagerContent.Text = "正在加载…";
             try
             {
-                // 离线缓存优先（无网络可读）
-                var cached = await OfflineStore.LoadChapterAsync(_payload.Book.BookUrl, _index);
-                if (cached != null)
+                if (LocalBookStore.IsLocal(_payload.Book))
                 {
-                    _chapterText = cached;
+                    // 本地书（TXT/EPUB）：直接读本地文件，不走网络与离线缓存
+                    var text = await LocalBookStore.GetChapterTextAsync(_payload.Book, _index).TimeoutAfter(10000);
+                    _chapterText = string.IsNullOrEmpty(text) ? "（本章内容为空）" : text;
                 }
                 else
                 {
-                    var wb = new WebBook();
-                    var text = await wb.GetContentAsync(_payload.Source, chapter).TimeoutAfter(20000);
-                    _chapterText = text.Length == 0 ? "（本章内容为空）" : text;
+                    // 离线缓存优先（无网络可读）
+                    var cached = await OfflineStore.LoadChapterAsync(_payload.Book.BookUrl, _index);
+                    if (cached != null)
+                    {
+                        _chapterText = cached;
+                    }
+                    else
+                    {
+                        var wb = new WebBook();
+                        var text = await wb.GetContentAsync(_payload.Source, chapter).TimeoutAfter(20000);
+                        _chapterText = text.Length == 0 ? "（本章内容为空）" : text;
+                    }
                 }
                 // 替换净化规则（书名/书源作用域，离线缓存同样生效）
                 _chapterText = await ContentProcessor.ApplyContentAsync(
