@@ -3,6 +3,7 @@ using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
 using Windows.Graphics.Imaging;
 using Windows.Media.Capture;
+using Windows.Media.Devices;
 using Windows.Media.MediaProperties;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
@@ -27,6 +28,9 @@ namespace legado_wp.Views
         private BarcodeReaderGeneric _reader;
         private bool _busy;
         private bool _done;
+        private int _frameCount;
+        private int _decodeCount;
+        private string _lastError = "";
 
         public ScanPage()
         {
@@ -79,6 +83,27 @@ namespace legado_wp.Views
                 });
                 Preview.Source = _media;
                 await _media.StartPreviewAsync();
+
+                // 连续对焦（微距档）：二维码近距离扫码的关键，默认对焦在远处时码是糊的
+                try
+                {
+                    var fc = _media.VideoDeviceController.FocusControl;
+                    if (fc.Supported)
+                    {
+                        fc.Configure(new FocusSettings
+                        {
+                            Mode = FocusMode.Continuous,
+                            AutoFocusRange = AutoFocusRange.Macro
+                        });
+                        await fc.FocusAsync();
+                    }
+                    else
+                    {
+                        Status.Text = "此相机不支持自动对焦，请把手机拿远些";
+                    }
+                }
+                catch { /* 对焦失败继续扫 */ }
+
                 Status.Text = "";
 
                 _reader = new BarcodeReaderGeneric
@@ -113,7 +138,12 @@ namespace legado_wp.Views
                 using (var preview = await _media.GetPreviewFrameAsync())
                 {
                     var bmp = preview.SoftwareBitmap; // 原生格式多为 NV12
-                    if (bmp == null) return;
+                    if (bmp == null)
+                    {
+                        _lastError = "预览帧为空";
+                        UpdateDebugStatus(0, 0);
+                        return;
+                    }
                     var bgra = bmp.BitmapPixelFormat == BitmapPixelFormat.Bgra8
                         ? bmp
                         : SoftwareBitmap.Convert(bmp, BitmapPixelFormat.Bgra8);
@@ -125,22 +155,40 @@ namespace legado_wp.Views
 
                     var source = new RGBLuminanceSource(bytes, w, h, RGBLuminanceSource.BitmapFormat.BGRA32);
                     var result = _reader.Decode(source);
+                    _frameCount++;
+                    _lastError = "";
                     if (result != null && !string.IsNullOrEmpty(result.Text))
                     {
                         _done = true;
                         _timer.Stop();
                         await HandleScanResultAsync(result.Text.Trim());
+                        return;
                     }
+                    UpdateDebugStatus(w, h);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // 单帧失败（预览未就绪等）忽略，下一帧再试
+                // 单帧失败（预览未就绪等）不中断，但把错误显示出来便于诊断
+                _lastError = ex.Message;
+                UpdateDebugStatus(0, 0);
             }
             finally
             {
                 _busy = false;
             }
+        }
+
+        /// <summary>屏幕诊断：每 4 帧刷新一次状态行（帧数/尺寸/最近错误），便于真机排障。</summary>
+        private void UpdateDebugStatus(int w, int h)
+        {
+            if (_frameCount % 4 != 0) return;
+            var msg = _lastError.Length > 0
+                ? "帧错误：" + _lastError
+                : "取流中 第" + _frameCount + "帧 " + w + "x" + h
+                  + (h > 0 && _frameCount > 12 ? "（画面正常但未识别：请靠近/拉远些，让二维码清晰充满取景框）" : "");
+            var ignore = Dispatcher.RunAsync(CoreDispatcherPriority.Low,
+                () => { if (!_done) Status.Text = msg; });
         }
 
         /// <summary>码内容分发：URL → 下载导入；JSON → 直接导入。</summary>
