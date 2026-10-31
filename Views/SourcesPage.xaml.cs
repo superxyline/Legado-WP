@@ -287,6 +287,30 @@ namespace legado_wp.Views
             }
         }
 
+        /// <summary>清空全部书源（二次确认；已离线的书仍可读）。</summary>
+        private async void OnClearAllClick(object sender, RoutedEventArgs e)
+        {
+            if (_sources.Count == 0)
+            {
+                StatusHint.Text = "书源已经是空的";
+                StatusHint.Visibility = Visibility.Visible;
+                return;
+            }
+            var dlg = new ContentDialog
+            {
+                Title = "清空全部书源",
+                Content = "将删除全部 " + _sources.Count + " 个书源，不可恢复！\n\n已离线全文的书籍仍可阅读；书架与阅读进度不受影响。",
+                PrimaryButtonText = "确认清空",
+                CloseButtonText = "取消"
+            };
+            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+            await Storage.SaveSourcesAsync(new List<BookSource>());
+            SourceList.SelectedItems.Clear();
+            await ReloadAsync();
+            StatusHint.Text = "已清空全部书源";
+            StatusHint.Visibility = Visibility.Visible;
+        }
+
         private async void OnBatchDeleteClick(object sender, RoutedEventArgs e)
         {
             var picked = SourceList.SelectedItems.Cast<BookSource>().ToList();

@@ -26,6 +26,7 @@
             <Button Content="禁用" FontSize="12" Margin="8,0,0,0" Click="OnBatchDisableClick"/>
             <Button Content="校验" FontSize="12" Margin="8,0,0,0" Click="OnCheckClick"/>
             <Button Content="删除所选" FontSize="12" Margin="8,0,0,0" Click="OnBatchDeleteClick"/>
+            <Button Content="清空全部" FontSize="12" Margin="8,0,0,0" Click="OnClearAllClick" Foreground="Red"/>
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" Padding="8,0,8,8">
