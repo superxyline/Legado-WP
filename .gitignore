@@ -17,6 +17,11 @@ _*.md
 _*.txt
 _pfx_pwd.txt
 
+# 交接文档（含内部进度，严禁上传 git 平台 —— AGENTS.md 第 3 节红线）
+HANDOFF_*.md
+*HANDOFF*
+*handover*
+
 # 临时文件
 *.user
 *.suo
