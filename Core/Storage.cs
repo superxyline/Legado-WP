@@ -42,6 +42,9 @@ namespace legado_wp.Core
 
         public static Task SaveSourcesAsync(List<BookSource> sources) => WriteJsonAsync("sources.json", sources);
 
+        /// <summary>本机书源数量上限：929 老机型内存有限，数千源会 OOM 压垮书源页。</summary>
+        public const int MaxSources = 1000;
+
         /// <summary>导入书源 JSON（单对象或数组），按 bookSourceUrl 去重合并。返回新增数。</summary>
         public static async Task<int> ImportSourcesAsync(string json)
         {
@@ -53,15 +56,29 @@ namespace legado_wp.Core
                     ? JsonConvert.DeserializeObject<List<BookSource>>(json)
                     : new List<BookSource> { JsonConvert.DeserializeObject<BookSource>(json) };
             }
-            catch
+            catch (Exception ex)
             {
-                throw new Exception("书源 JSON 解析失败");
+                // 数千源大文件在老机型上解析可能直接 OOM，给出可行动的提示
+                var hint = ex is OutOfMemoryException
+                    ? "（文件过大，老机型内存不足，请导入精选小合集）"
+                    : "";
+                throw new Exception("书源 JSON 解析失败" + hint);
             }
             if (incoming == null || incoming.Count == 0) throw new Exception("书源内容为空");
             incoming = incoming.Where(s => !string.IsNullOrEmpty(s.BookSourceUrl)).ToList();
             if (incoming.Count == 0) throw new Exception("无有效书源（缺 bookSourceUrl）");
+            if (incoming.Count > MaxSources)
+                throw new Exception("书源过多（" + incoming.Count + " 个）。本机最多支持约 "
+                    + MaxSources + " 个，请导入精选合集或分批导入");
 
             var existing = await LoadSourcesAsync();
+            if (existing.Count + incoming.Count > MaxSources)
+            {
+                var room = Math.Max(0, MaxSources - existing.Count);
+                if (room == 0) throw new Exception("书源已满（" + existing.Count + " 个），请先删除部分再导入");
+                incoming = incoming.Take(room).ToList();
+            }
+
             var keys = new HashSet<string>(existing.Select(s => s.BookSourceUrl));
             var added = 0;
             foreach (var src in incoming)

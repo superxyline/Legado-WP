@@ -61,14 +61,14 @@ namespace legado_wp
 
         protected override async void OnLaunched(LaunchActivatedEventArgs e)
         {
-            // 0.0.14.7 一次性迁移：超大书源合集（数千源）导致书源页卡死闪退，
-            // 升级后首次启动自动清空书源（仅此一次，flag 防重入；书架/进度/离线不受影响）
+            // 0.0.15.0 一次性迁移（第二次）：用户重新导入数千源大合集再次压垮 929（OOM），
+            // 升级后首次启动自动清空书源（仅此一次；书架/进度/离线不受影响）
             try
             {
                 var mig = Windows.Storage.ApplicationData.Current.LocalSettings;
-                if (mig.Values["migration.14.7.sourcesCleared"] == null)
+                if (mig.Values["migration.15.0.sourcesCleared"] == null)
                 {
-                    mig.Values["migration.14.7.sourcesCleared"] = true;
+                    mig.Values["migration.15.0.sourcesCleared"] = true;
                     var srcFile = await Windows.Storage.ApplicationData.Current.LocalFolder
                         .TryGetItemAsync("sources.json");
                     if (srcFile != null) await srcFile.DeleteAsync();
