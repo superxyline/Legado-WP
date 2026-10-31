@@ -208,7 +208,7 @@ namespace legado_wp.Views
                 () => { if (!_done) Status.Text = msg; });
         }
 
-        /// <summary>码内容分发：URL → 下载导入；JSON → 直接导入。</summary>
+        /// <summary>码内容分发：URL → 下载导入（带进度）；JSON → 直接导入。</summary>
         private async Task HandleScanResultAsync(string text)
         {
             try
@@ -218,7 +218,14 @@ namespace legado_wp.Views
 
                 var added = text.StartsWith("{") || text.StartsWith("[")
                     ? await Storage.ImportSourcesAsync(text)
-                    : await Storage.ImportSourcesFromUrlAsync(text).TimeoutAfter(30000);
+                    : await Storage.ImportSourcesFromUrlAsync(text, n =>
+                    {
+                        var msg = n < 0
+                            ? "下载中断，自动重试…"
+                            : "下载书源中 " + Storage.FormatBytes(n) + "（大合集需几分钟）";
+                        var ignore = Dispatcher.RunAsync(CoreDispatcherPriority.Low,
+                            () => Status.Text = msg);
+                    });
 
                 var dlg = new ContentDialog
                 {

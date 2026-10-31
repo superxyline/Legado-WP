@@ -55,7 +55,12 @@ namespace legado_wp.Views
             StatusHint.Text = "正在下载书源…";
             try
             {
-                var added = await Storage.ImportSourcesFromUrlAsync(url).TimeoutAfter(20000);
+                var added = await Storage.ImportSourcesFromUrlAsync(url, n =>
+                {
+                    var msg = n < 0 ? "下载中断，自动重试…" : "下载书源中 " + Storage.FormatBytes(n);
+                    var ignore = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Low,
+                        () => StatusHint.Text = msg);
+                });
                 await ReloadAsync();
                 StatusHint.Text = "";
                 UrlBox.Text = "";

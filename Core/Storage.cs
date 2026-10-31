@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Windows.Storage;
@@ -76,22 +77,70 @@ namespace legado_wp.Core
             return added;
         }
 
-        /// <summary>从 URL 导入书源。</summary>
-        public static async Task<int> ImportSourcesFromUrlAsync(string url)
+        /// <summary>
+        /// 从 URL 导入书源（流式下载 + 进度回调 + 自动重试）。
+        /// 大合集（几 MB / 数千源）走慢速站点也要几分钟，所以不设硬超时，靠进度反馈。
+        /// </summary>
+        public static async Task<int> ImportSourcesFromUrlAsync(string url, Action<long> onProgress = null)
         {
-            string body;
+            string body = null;
+            Exception last = null;
+            for (var attempt = 1; attempt <= 2 && body == null; attempt++)
+            {
+                try
+                {
+                    body = await DownloadTextAsync(url, onProgress);
+                    if (string.IsNullOrEmpty(body)) throw new Exception("响应为空");
+                }
+                catch (Exception ex)
+                {
+                    last = ex;
+                    if (attempt == 1)
+                    {
+                        onProgress?.Invoke(-1); // -1 = 重试中
+                        await Task.Delay(1000);
+                    }
+                }
+            }
+            if (body == null) throw new Exception("下载失败: " + (last?.Message ?? "未知错误"));
+            return await ImportSourcesAsync(body);
+        }
+
+        /// <summary>流式下载文本（ResponseHeadersRead + 循环 Read，支持进度回调，无硬超时）。</summary>
+        private static async Task<string> DownloadTextAsync(string url, Action<long> onProgress)
+        {
+            var client = new System.Net.Http.HttpClient();
+            client.Timeout = TimeSpan.FromMinutes(15);
             try
             {
-                var au = new AnalyzeUrl(url, "");
-                var res = await HttpPageFetcher.Default.GetAsync(au);
-                if (!res.IsSuccess || string.IsNullOrEmpty(res.Body)) throw new Exception("HTTP " + res.Code);
-                body = res.Body;
+                using (var resp = await client.GetAsync(url, System.Net.Http.HttpCompletionOption.ResponseHeadersRead))
+                {
+                    if (!resp.IsSuccessStatusCode) throw new Exception("HTTP " + (int)resp.StatusCode);
+                    var total = resp.Content.Headers.ContentLength ?? -1;
+                    var ms = new MemoryStream();
+                    var buffer = new byte[65536];
+                    using (var stream = await resp.Content.ReadAsStreamAsync())
+                    {
+                        while (true)
+                        {
+                            var read = await stream.ReadAsync(buffer, 0, buffer.Length);
+                            if (read <= 0) break;
+                            ms.Write(buffer, 0, read);
+                            onProgress?.Invoke(ms.Length);
+                        }
+                    }
+                    var bytes = ms.ToArray();
+                    var enc = Encoding.UTF8;
+                    // BOM 探测
+                    if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+                        return enc.GetString(bytes, 3, bytes.Length - 3);
+                    return enc.GetString(bytes, 0, bytes.Length);
+                }
             }
-            catch (Exception ex)
+            finally
             {
-                throw new Exception("下载失败: " + ex.Message);
+                client.Dispose();
             }
-            return await ImportSourcesAsync(body);
         }
 
         // ---------------- 书架 ----------------
@@ -204,6 +253,15 @@ namespace legado_wp.Core
 
         public static Task SaveReplaceRulesAsync(List<ReplaceRule> rules) =>
             WriteJsonAsync("replace_rules.json", rules);
+
+        /// <summary>字节数格式化（下载进度显示用）。</summary>
+        public static string FormatBytes(long n)
+        {
+            if (n < 0) return "重试中…";
+            if (n < 1024) return n + "B";
+            if (n < 1024 * 1024) return (n / 1024.0).ToString("F0") + "KB";
+            return (n / 1024.0 / 1024.0).ToString("F1") + "MB";
+        }
 
         // ---------------- 备份 / 恢复 ----------------
 
