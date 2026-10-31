@@ -23,6 +23,13 @@ namespace legado_wp.Core
         /// <summary>测试注入的取页器；null 时用真实 HttpClient。</summary>
         public static IPageFetcher FetcherOverride;
 
+        /// <summary>
+        /// 是否有线程正在执行书源 JS。JS 里调 java.ajax 会同步等待一个新取页请求，
+        /// 该请求的 AnalyzeUrl 构造若再进 Eval 抢同一把全局锁 = 死锁。
+        /// AnalyzeUrl.ReplaceJsTemplates 见此标志时跳过求值（模板原样保留）即可破环。
+        /// </summary>
+        public static volatile bool EvalActive;
+
         internal static Task<StrResponse> FetchAsync(AnalyzeUrl au)
         {
             return (FetcherOverride ?? HttpPageFetcher.Default).GetAsync(au);
@@ -64,6 +71,7 @@ namespace legado_wp.Core
 
                 try
                 {
+                    EvalActive = true;
                     var v = engine.Execute(js).GetCompletionValue();
                     return Unwrap(v, engine);
                 }
@@ -71,6 +79,7 @@ namespace legado_wp.Core
                 {
                     return null;
                 }
+                finally { EvalActive = false; }
             }
         }
 
@@ -92,11 +101,13 @@ namespace legado_wp.Core
                     engine.SetValue("source", source);
                     try
                     {
+                        EvalActive = true;
                         var v = engine.Execute(js).GetCompletionValue();
                         return Unwrap(v, engine);
                     }
                     finally
                     {
+                        EvalActive = false;
                         CurrentSource = null;
                     }
                 }

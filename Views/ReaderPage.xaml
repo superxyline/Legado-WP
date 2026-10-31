@@ -95,6 +95,7 @@
                     <MenuFlyout>
                         <MenuFlyoutItem Text="添加书签（本章）" Click="OnAddBookmark"/>
                         <MenuFlyoutItem Text="查看书签…" Click="OnShowBookmarks"/>
+                        <MenuFlyoutItem Text="搜索正文…" Click="OnSearchTextClick"/>
                     </MenuFlyout>
                 </Button.Flyout>
             </Button>

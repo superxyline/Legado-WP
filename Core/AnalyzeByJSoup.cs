@@ -20,6 +20,9 @@ namespace legado_wp.Core
             _element = Parse(doc);
         }
 
+        /// <summary>解析后的根元素（AnalyzeRule 缓存复用，避免同一段 HTML 每字段重解析）。</summary>
+        internal IElement Root => _element;
+
         private static IElement Parse(object doc)
         {
             if (doc is IElement el) return el;

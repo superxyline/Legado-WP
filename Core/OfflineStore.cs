@@ -27,10 +27,17 @@ namespace legado_wp.Core
             public List<BookChapter> Chapters; // 离线目录（无网络时目录页可用）
         }
 
+        // 根目录/书籍子目录缓存：离线全文逐章写时每章省 2 次文件夹 API 往返（2000 章省数分钟）
+        private static StorageFolder _rootCache;
+        private static readonly Dictionary<string, StorageFolder> BookFolderCache =
+            new Dictionary<string, StorageFolder>();
+
         private static async Task<StorageFolder> RootAsync()
         {
-            return await ApplicationData.Current.LocalFolder
+            if (_rootCache != null) return _rootCache;
+            _rootCache = await ApplicationData.Current.LocalFolder
                 .CreateFolderAsync("Offline", CreationCollisionOption.OpenIfExists);
+            return _rootCache;
         }
 
         public static string KeyOf(string bookUrl)
@@ -46,8 +53,14 @@ namespace legado_wp.Core
 
         private static async Task<StorageFolder> BookFolderAsync(string bookUrl)
         {
+            var key = KeyOf(bookUrl);
+            StorageFolder cached;
+            if (BookFolderCache.TryGetValue(key, out cached)) return cached;
             var root = await RootAsync();
-            return await root.CreateFolderAsync(KeyOf(bookUrl), CreationCollisionOption.OpenIfExists);
+            var folder = await root.CreateFolderAsync(key, CreationCollisionOption.OpenIfExists);
+            if (BookFolderCache.Count > 8) BookFolderCache.Clear();
+            BookFolderCache[key] = folder;
+            return folder;
         }
 
         public static async Task SaveChapterAsync(string bookUrl, int index, string content)

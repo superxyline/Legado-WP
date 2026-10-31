@@ -561,6 +561,7 @@ namespace legado_wp.Views
                 NextBtn.IsEnabled = _index < _payload.Chapters.Count - 1;
                 _busy = false;
                 SaveProgress();
+                LocatePendingSearch();
             }
         }
 
@@ -665,6 +666,132 @@ namespace legado_wp.Views
                 _index = picked.ChapterIndex;
                 if (_mode != ReaderMode.Scroll) _pageIndex = picked.PageIndex;
                 await LoadChapterAsync();
+            }
+        }
+
+        // ---------------- 正文搜索 ----------------
+
+        private sealed class TextHit
+        {
+            public int ChapterIndex;
+            public string Display;
+        }
+
+        /// <summary>
+        /// 正文搜索：搜当前章 + 已离线缓存的章节（逐章读缓存文本），点结果跳章。
+        /// 分页模式且命中在目标章时，自动跳到含关键字的页。
+        /// </summary>
+        private async void OnSearchTextClick(object sender, RoutedEventArgs e)
+        {
+            if (_payload == null) return;
+            var box = new TextBox { PlaceholderText = "关键字（在当前章与已离线章节中搜索）" };
+            var dlg = new ContentDialog
+            {
+                Title = "搜索正文",
+                Content = box,
+                PrimaryButtonText = "搜索",
+                CloseButtonText = "取消"
+            };
+            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+            var kw = (box.Text ?? "").Trim();
+            if (kw.Length == 0) return;
+
+            StopAuto();
+            Footer.Text = "搜索中…";
+            var hits = new List<TextHit>();
+            var total = _payload.Chapters.Count;
+            var cachedCount = 0;
+
+            for (var i = 0; i < total; i++)
+            {
+                string text;
+                if (LocalBookStore.IsLocal(_payload.Book))
+                    text = await LocalBookStore.GetChapterTextAsync(_payload.Book, i);
+                else
+                    text = await OfflineStore.LoadChapterAsync(_payload.Book.BookUrl, i);
+                if (text == null) continue; // 未离线的章跳过
+                cachedCount++;
+
+                var pos = text.IndexOf(kw, StringComparison.OrdinalIgnoreCase);
+                var inChapter = 0;
+                while (pos >= 0 && hits.Count < 80)
+                {
+                    inChapter++;
+                    if (inChapter == 1)
+                    {
+                        var start = Math.Max(0, pos - 10);
+                        var len = Math.Min(text.Length - start, 24);
+                        var ctx = text.Substring(start, len).Replace("\n", " ").Replace("\r", "");
+                        hits.Add(new TextHit
+                        {
+                            ChapterIndex = i,
+                            Display = "第" + (i + 1) + "章 " + (_payload.Chapters[i].Title ?? "")
+                                      + " · …" + ctx + "…"
+                        });
+                    }
+                    pos = text.IndexOf(kw, pos + kw.Length, StringComparison.OrdinalIgnoreCase);
+                }
+                if (hits.Count >= 80) break;
+            }
+
+            var list = new ListView { MaxHeight = 380, IsItemClickEnabled = true };
+            list.ItemTemplate = (DataTemplate)Windows.UI.Xaml.Markup.XamlReader.Load(
+                "<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">" +
+                "<TextBlock Text=\"{Binding Display}\" FontSize=\"14\" Margin=\"0,6\" TextWrapping=\"Wrap\"/>" +
+                "</DataTemplate>");
+            list.ItemsSource = hits;
+
+            var hint = cachedCount == 0
+                ? "本书没有已离线/本地的章节可搜索（先在详情页离线全文）"
+                : "共搜 " + cachedCount + " 个缓存章节，命中 " + hits.Count + " 处";
+            var result = new ContentDialog
+            {
+                Title = "正文搜索：" + kw,
+                Content = hits.Count > 0 ? (object)list : new TextBlock { Text = hint, TextWrapping = TextWrapping.Wrap },
+                CloseButtonText = "关闭"
+            };
+            TextHit pick = null;
+            list.ItemClick += (s, args) => { pick = args.ClickedItem as TextHit; result.Hide(); };
+            await result.ShowAsync();
+
+            if (pick != null)
+            {
+                _index = pick.ChapterIndex;
+                _pendingSearchKw = kw;
+                if (_mode != ReaderMode.Scroll) _pageIndex = 0;
+                await LoadChapterAsync();
+            }
+        }
+
+        /// <summary>待跳转的搜索关键字：章节加载完用于分页定位到命中页。</summary>
+        private string _pendingSearchKw;
+
+        /// <summary>章节加载后若有待查关键字，把分页定位到第一处命中的页（滚动模式给页脚提示）。</summary>
+        private void LocatePendingSearch()
+        {
+            if (string.IsNullOrEmpty(_pendingSearchKw) || _chapterText == null) return;
+            var kw = _pendingSearchKw;
+            _pendingSearchKw = null;
+            var pos = _chapterText.IndexOf(kw, StringComparison.OrdinalIgnoreCase);
+            if (pos < 0) return;
+            if (_mode == ReaderMode.Scroll)
+            {
+                Footer.Text = "本章含「" + kw + "」（未离线章节不在搜索范围）";
+            }
+            else
+            {
+                var display = FormatText(_chapterText);
+                if (!ReferenceEquals(display, _chapterText)) pos = display.IndexOf(kw, StringComparison.OrdinalIgnoreCase);
+                if (pos < 0) return;
+                // 按分页时每页字符数估算所在页
+                var perPage = _pages.Count > 0 && display.Length > 0
+                    ? display.Length / _pages.Count : int.MaxValue;
+                if (perPage > 0 && perPage != int.MaxValue)
+                {
+                    var page = Math.Min(_pages.Count - 1, pos / perPage);
+                    _pageIndex = page;
+                    ShowCurrentPage();
+                }
             }
         }
     }

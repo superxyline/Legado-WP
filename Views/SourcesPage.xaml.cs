@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -253,30 +254,41 @@ namespace legado_wp.Views
             // 不 await 弹窗（校验在后台跑，弹窗可先关）
             var showTask = dlg.ShowAsync();
 
-            var ok = 0;
-            var failed = new List<CheckSource.Result>();
+            var okCount = 0;
+            var lastFail = "";
             var done = 0;
+            List<CheckSource.Result> all;
             try
             {
-                await CheckSource.CheckAllAsync(picked, "我的", 3,
+                // 进度只在回调里更新 UI（节流），结果统一从返回值聚合（避免跨线程 List.Add）
+                var lastFailLocal = "";
+                all = await CheckSource.CheckAllAsync(picked, "我的", 3,
                     r =>
                     {
-                        done++;
-                        if (r.Ok) ok++; else failed.Add(r);
+                        var d = Interlocked.Increment(ref done);
+                        if (r.Ok) Interlocked.Increment(ref okCount); else lastFailLocal = r.Source.BookSourceName;
+                        var failName = lastFailLocal;
                         _ = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
                         {
-                            progress.Value = done;
-                            status.Text = done + "/" + picked.Count + " 通过 " + ok
-                                + (failed.Count > 0 ? " · 最近失败：" + r.Source.BookSourceName : "");
+                            progress.Value = d;
+                            status.Text = d + "/" + picked.Count + " 通过 " + okCount
+                                + (failName.Length > 0 ? " · 最近失败：" + failName : "");
                         });
                     },
                     new System.Threading.CancellationTokenSource(180000).Token);
             }
-            catch (OperationCanceledException) { cancelled = true; }
+            catch (OperationCanceledException) { all = null; cancelled = true; }
             catch (Exception ex)
             {
                 status.Text = "校验异常：" + ex.Message;
+                all = null;
             }
+
+            var failed = all != null ? all.Where(r => !r.Ok).ToList() : new List<CheckSource.Result>();
+            var ok = all != null ? all.Count(r => r.Ok) : okCount;
+
+            // 确保进度弹窗已关闭再弹总结（UWP 不允许两个 ContentDialog）
+            try { await showTask; } catch { }
 
             // 总结
             var summary = new TextBlock

@@ -130,7 +130,7 @@ namespace legado_wp.Views
             if (book.NewCount > 0)
             {
                 book.NewCount = 0;
-                _ = Storage.SaveShelfAsync(_shelf);
+                _ = Storage.SaveShelfAsync(_shelf).ContinueWith(t => UpdateHelper.RefreshBadge(_shelf));
             }
             TocPage.AutoReadOnce = true;
             Frame.Navigate(typeof(TocPage), book);

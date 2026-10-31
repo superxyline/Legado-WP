@@ -364,10 +364,11 @@ namespace legado_wp.Core
         public override string ToString() { return body ?? ""; }
     }
 
-    /// <summary>Cookie 简版存储（HttpPageFetcher 收集 Set-Cookie）。</summary>
+    /// <summary>Cookie 简版存储（HttpPageFetcher 收集 Set-Cookie）。并发搜索多线程读写，必须线程安全。</summary>
     public static class CookieStore
     {
-        private static readonly Dictionary<string, string> Map = new Dictionary<string, string>();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> Map =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
         public static void Set(string url, string setCookie)
         {
             try
@@ -379,7 +380,7 @@ namespace legado_wp.Core
             }
             catch { }
         }
-        public static bool TryGet(string tag, out string v) { return Map.TryGetValue(tag, out v); }
+        public static bool TryGet(string tag, out string v) { return Map.TryGetValue(tag ?? "", out v); }
     }
 
     /// <summary>对称加密对象（对照 hutool SymmetricCrypto 常用方法）。</summary>

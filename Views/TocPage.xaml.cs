@@ -379,10 +379,36 @@ namespace legado_wp.Views
         private void OnChapterClick(object sender, ItemClickEventArgs e)
         {
             if (_payload == null) return;
-            var index = _payload.Chapters.IndexOf(e.ClickedItem as BookChapter);
+            // 列表项可能是原文章节或目录搜索的 TocItem 包装
+            var chapter = (e.ClickedItem as TocItem)?.Chapter ?? e.ClickedItem as BookChapter;
+            var index = chapter == null ? -1 : _payload.Chapters.IndexOf(chapter);
             if (index < 0) return;
             _payload.StartIndex = index;
             Frame.Navigate(typeof(ReaderPage), _payload);
+        }
+
+        // ---------------- 目录搜索 ----------------
+
+        /// <summary>章节名过滤（绑定包装带原索引，点击跳转用原目录 IndexOf 定位）。</summary>
+        private class TocItem
+        {
+            public BookChapter Chapter;
+            public string Title => Chapter.Title;
+        }
+
+        private void OnTocSearchChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_payload == null) return;
+            var kw = TocSearchBox.Text?.Trim() ?? "";
+            if (kw.Length == 0)
+            {
+                ChapterList.ItemsSource = _payload.Chapters;
+                return;
+            }
+            ChapterList.ItemsSource = _payload.Chapters
+                .Select((c, i) => new TocItem { Chapter = c })
+                .Where(t => (t.Title ?? "").IndexOf(kw, StringComparison.OrdinalIgnoreCase) >= 0)
+                .ToList();
         }
     }
 }

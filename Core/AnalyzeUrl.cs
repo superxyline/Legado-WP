@@ -124,10 +124,10 @@ namespace legado_wp.Core
 
         public bool IsPost() => Method == "POST";
 
-        /// <summary>剩余 {{expr}} 模板逐个求值替换（M3）。</summary>
+        /// <summary>剩余 {{expr}} 模板逐个求值替换（M3）。JS 上下文内跳过（java.ajax 同步取页时防锁死锁）。</summary>
         private static string ReplaceJsTemplates(string url)
         {
-            if (!url.Contains("{{")) return url;
+            if (!url.Contains("{{") || JsEngine.EvalActive) return url;
             var result = url;
             var m = Regex.Match(result, "\\{\\{([^{}]+)\\}\\}");
             var guard = 0;

@@ -32,6 +32,33 @@ namespace legado_wp.Core
         private readonly Dictionary<string, string> _variables = new Dictionary<string, string>();
         private readonly List<string> _unsupported = new List<string>();
 
+        // 解析缓存：同一段内容（整页 HTML/JSON）被多个字段规则取值时只解析一次
+        private object _domKey;
+        private AngleSharp.Dom.IElement _domCache;
+        private object _jsonKey;
+        private Newtonsoft.Json.Linq.JToken _jsonCache;
+
+        /// <summary>按引用缓存 string→DOM 解析（content 是同一响应串时全字段复用）。</summary>
+        private AngleSharp.Dom.IElement DomFor(object content)
+        {
+            if (content is AngleSharp.Dom.IElement el) return el;
+            if (ReferenceEquals(content, _domKey)) return _domCache;
+            var parsed = new AnalyzeByJSoup(content).Root;
+            _domKey = content;
+            _domCache = parsed;
+            return parsed;
+        }
+
+        private Newtonsoft.Json.Linq.JToken JsonFor(object content)
+        {
+            if (content is Newtonsoft.Json.Linq.JToken jt) return jt;
+            if (ReferenceEquals(content, _jsonKey)) return _jsonCache;
+            var parsed = new AnalyzeByJsonPath(content).Root;
+            _jsonKey = content;
+            _jsonCache = parsed;
+            return parsed;
+        }
+
         public AnalyzeRule(object content, string baseUrl = null)
         {
             Content = content;
@@ -333,13 +360,13 @@ namespace legado_wp.Core
                         return v == null ? "" : v.ToString();
                     }
                 case RuleMode.Json:
-                    return new AnalyzeByJsonPath(result).GetString(rule);
+                    return new AnalyzeByJsonPath(JsonFor(result)).GetString(rule);
                 case RuleMode.XPath:
-                    return new AnalyzeByXPath(result).GetString(rule) ?? "";
+                    return new AnalyzeByXPath(DomFor(result)).GetString(rule) ?? "";
                 case RuleMode.Regex:
                     return ApplyRegex(result.ToString(), rule);
                 default:
-                    return new AnalyzeByJSoup(result).GetString(rule);
+                    return new AnalyzeByJSoup(DomFor(result)).GetString(rule);
             }
         }
 
@@ -367,7 +394,7 @@ namespace legado_wp.Core
                 switch (sr.Mode)
                 {
                     case RuleMode.Json:
-                        result.AddRange(new AnalyzeByJsonPath(content).GetList(sr.Rule)
+                        result.AddRange(new AnalyzeByJsonPath(JsonFor(content)).GetList(sr.Rule)
                             .Select(t => t?.ToString()));
                         break;
                     case RuleMode.XPath:
@@ -377,7 +404,7 @@ namespace legado_wp.Core
                         _unsupported.Add("<js>");
                         break;
                     default:
-                        result.AddRange(new AnalyzeByJSoup(content).GetStringList(sr.Rule));
+                        result.AddRange(new AnalyzeByJSoup(DomFor(content)).GetStringList(sr.Rule));
                         break;
                 }
             }
@@ -396,7 +423,7 @@ namespace legado_wp.Core
                 switch (sr.Mode)
                 {
                     case RuleMode.Json:
-                        result.AddRange(new AnalyzeByJsonPath(content).GetList(sr.Rule));
+                        result.AddRange(new AnalyzeByJsonPath(JsonFor(content)).GetList(sr.Rule));
                         break;
                     case RuleMode.XPath:
                         result.AddRange(new AnalyzeByXPath(content).GetElements(sr.Rule)
@@ -406,7 +433,7 @@ namespace legado_wp.Core
                         _unsupported.Add("<js>");
                         break;
                     default:
-                        result.AddRange(new AnalyzeByJSoup(content).GetElements(sr.Rule)
+                        result.AddRange(new AnalyzeByJSoup(DomFor(content)).GetElements(sr.Rule)
                             .Cast<object>());
                         break;
                 }

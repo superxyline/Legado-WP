@@ -59,8 +59,25 @@ namespace legado_wp.Core
                 await Task.WhenAll(tasks);
             }
             await Storage.SaveShelfAsync(shelf);
+            RefreshBadge(shelf);
             onBookUpdated?.Invoke();
             return updated;
+        }
+
+        /// <summary>按书架当前 NewCount 总和刷新磁贴角标（WP Live Tile 特色）。</summary>
+        public static void RefreshBadge(List<Book> shelf)
+        {
+            try
+            {
+                var total = 0;
+                foreach (var b in shelf) total += Math.Max(0, b.NewCount);
+                var doc = new Windows.Data.Xml.Dom.XmlDocument();
+                doc.LoadXml("<badge value=\"" + total + "\"/>");
+                Windows.UI.Notifications.BadgeUpdateManager
+                    .CreateBadgeUpdaterForApplication()
+                    .Update(new Windows.UI.Notifications.BadgeNotification(doc));
+            }
+            catch { /* 桌面/磁贴不存在时忽略 */ }
         }
 
         /// <summary>单书检查：章节数变多 → 更新 LastChapter/NewCount。返回是否检测到更新。</summary>

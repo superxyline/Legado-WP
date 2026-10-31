@@ -24,7 +24,11 @@
                 <ListView.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Margin="0,8">
-                            <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiBold"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding MergeInfo}" FontSize="12" Foreground="#FFC62828"
+                                           FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding Author}" FontSize="13" Foreground="Gray"/>
                                 <TextBlock Text="源:" FontSize="13" Foreground="#1565C0" Margin="12,0,0,0"/>

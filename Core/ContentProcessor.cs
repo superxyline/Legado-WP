@@ -13,6 +13,16 @@ namespace legado_wp.Core
     /// </summary>
     public static class ContentProcessor
     {
+        // 规则缓存：每章 2 次读盘+反序列化太浪费，ReplacePage 修改时 Invalidate
+        private static List<ReplaceRule> _cache;
+        private static readonly object Lock = new object();
+
+        /// <summary>规则变更后调用（Storage.SaveReplaceRulesAsync 自动触发）。</summary>
+        public static void Invalidate()
+        {
+            lock (Lock) _cache = null;
+        }
+
         public static async Task<string> ApplyContentAsync(string content, string bookName, string sourceUrl)
         {
             if (string.IsNullOrEmpty(content)) return content;
@@ -67,10 +77,15 @@ namespace legado_wp.Core
 
         private static async Task<List<ReplaceRule>> GetRulesAsync()
         {
+            List<ReplaceRule> cached;
+            lock (Lock) cached = _cache;
+            if (cached != null) return cached;
             var all = await Storage.LoadReplaceRulesAsync();
-            return all.Where(r => r.Enabled && !string.IsNullOrEmpty(r.Pattern))
+            var enabled = all.Where(r => r.Enabled && !string.IsNullOrEmpty(r.Pattern))
                 .OrderBy(r => r.SortOrder)
                 .ToList();
+            lock (Lock) _cache = enabled;
+            return enabled;
         }
     }
 }

@@ -400,16 +400,30 @@ namespace legado_wp.Core
             catch { return null; }
         }
 
-        private static readonly Dictionary<string, string> TxtCache = new Dictionary<string, string>();
+        // TXT 全文只缓存最近一本（大 TXT 多本驻留直接 OOM），锁保护并发读
+        private static readonly object TxtLock = new object();
+        private static string _txtKey;
+        private static string _txtText;
 
-        private static async Task<string> TxtCacheAsync(StorageFolder folder)
+        private static Task<string> TxtCacheAsync(StorageFolder folder)
         {
-            string v;
-            if (TxtCache.TryGetValue(folder.Name, out v)) return v;
+            lock (TxtLock)
+            {
+                if (_txtKey == folder.Name && _txtText != null) return Task.FromResult(_txtText);
+            }
+            return LoadTxtAsync(folder);
+        }
+
+        private static async Task<string> LoadTxtAsync(StorageFolder folder)
+        {
             var file = await folder.GetFileAsync("book.txt");
-            v = await FileIO.ReadTextAsync(file);
-            TxtCache[folder.Name] = v;
-            return v;
+            var text = await FileIO.ReadTextAsync(file);
+            lock (TxtLock)
+            {
+                _txtKey = folder.Name;
+                _txtText = text;
+            }
+            return text;
         }
 
         /// <summary>编码探测：BOM → UTF-8 严格校验 → GBK 兜底。</summary>

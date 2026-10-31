@@ -17,6 +17,9 @@ namespace legado_wp.Core
             else _token = JToken.Parse(res.ToString());
         }
 
+        /// <summary>解析后的根 Token（AnalyzeRule 缓存复用）。</summary>
+        internal JToken Root => _token;
+
         public string GetString(string rule)
         {
             var obj = GetObject(rule);

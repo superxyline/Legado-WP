@@ -21,16 +21,35 @@ namespace legado_wp.Core
                 var folder = ApplicationData.Current.LocalFolder;
                 var file = await folder.GetFileAsync(name);
                 var text = await FileIO.ReadTextAsync(file);
-                return JsonConvert.DeserializeObject<T>(text);
+                try
+                {
+                    return JsonConvert.DeserializeObject<T>(text);
+                }
+                catch
+                {
+                    // 解析失败=文件损坏：改名留证，返回空，避免下次保存把数据永久覆盖
+                    // （929 断电/拔电池时写一半的文件会走到这里）
+                    try { await file.RenameAsync(name + ".bad-" + DateTime.Now.ToString("MMddHHmmss"), NameCollisionOption.FailIfExists); }
+                    catch { }
+                    return null;
+                }
             }
             catch { return null; }
         }
 
+        /// <summary>原子写：先写临时文件再改名替换，中途崩溃不会截断主文件。</summary>
         private static async Task WriteJsonAsync(string name, object value)
         {
             var folder = ApplicationData.Current.LocalFolder;
-            var file = await folder.CreateFileAsync(name, CreationCollisionOption.ReplaceExisting);
-            await FileIO.WriteTextAsync(file, JsonConvert.SerializeObject(value, Formatting.Indented));
+            var tmp = await folder.CreateFileAsync(name + ".tmp", CreationCollisionOption.ReplaceExisting);
+            await FileIO.WriteTextAsync(tmp, JsonConvert.SerializeObject(value, Formatting.Indented));
+            try
+            {
+                var target = await folder.GetFileAsync(name);
+                await target.DeleteAsync();
+            }
+            catch { /* 主文件不存在，直接改名 */ }
+            await tmp.RenameAsync(name, NameCollisionOption.FailIfExists);
         }
 
         // ---------------- 书源 ----------------
@@ -268,8 +287,11 @@ namespace legado_wp.Core
                 .ContinueWith(t => t.Result ?? new List<ReplaceRule>());
         }
 
-        public static Task SaveReplaceRulesAsync(List<ReplaceRule> rules) =>
-            WriteJsonAsync("replace_rules.json", rules);
+        public static Task SaveReplaceRulesAsync(List<ReplaceRule> rules)
+        {
+            ContentProcessor.Invalidate();
+            return WriteJsonAsync("replace_rules.json", rules);
+        }
 
         /// <summary>字节数格式化（下载进度显示用）。</summary>
         public static string FormatBytes(long n)

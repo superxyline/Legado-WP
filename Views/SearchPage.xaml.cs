@@ -8,6 +8,7 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
+using Windows.UI.Xaml.Navigation;
 using legado_wp.Core;
 
 namespace legado_wp.Views
@@ -23,6 +24,11 @@ namespace legado_wp.Views
         {
             // XAML 绑定只认属性，不能是公有字段
             public string SourceName { get; set; }
+
+            /// <summary>同名聚合：本组候选源（含自己）。&gt;1 时点击自动择优。</summary>
+            public List<ResultItem> Candidates;
+            public string MergeInfo => Candidates != null && Candidates.Count > 1
+                ? "合并 " + Candidates.Count + " 源·点我择优" : "";
         }
 
         private CancellationTokenSource _cts;
@@ -36,6 +42,13 @@ namespace legado_wp.Views
             InitializeComponent();
             _flushTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
             _flushTimer.Tick += (s, e) => { _flushTimer.Stop(); _flushPending = false; Flush(); };
+        }
+
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            // 离开页面即取消剩余搜索（省流量省电，929 电量杀手）
+            _cts?.Cancel();
+            _flushTimer.Stop();
         }
 
         private void OnKeyDown(object sender, KeyRoutedEventArgs e)
@@ -187,19 +200,43 @@ namespace legado_wp.Views
             _flushTimer.Start();
         }
 
-        /// <summary>按匹配度排序重绑列表，并保持用户当前滚动位置。</summary>
+        /// <summary>
+        /// 按匹配度排序重绑列表，并保持用户当前滚动位置。
+        /// 书名完全相同的结果合并成一条（保留全部候选源，点击自动择优）。
+        /// </summary>
         private void Flush()
         {
             var sv = FindDescendant<ScrollViewer>(ResultList);
             var offset = sv?.VerticalOffset ?? 0;
-            var list = _results
+            var sorted = _results
                 .OrderBy(r => SearchService.MatchLevel(r.Name, _key))
                 .ThenBy(r => r.SourceName)
                 .ThenBy(r => r.Name)
                 .ToList();
-            ResultList.ItemsSource = list;
+
+            List<ResultItem> display;
+            if (_aggregationEnabled)
+            {
+                display = new List<ResultItem>();
+                var seen = new HashSet<ResultItem>();
+                foreach (var r in sorted)
+                {
+                    if (!seen.Add(r)) continue;
+                    var sameName = sorted.Where(x => x.Name == r.Name).ToList();
+                    r.Candidates = sameName;
+                    display.Add(r);
+                }
+            }
+            else
+            {
+                display = sorted;
+                foreach (var r in display) r.Candidates = null;
+            }
+            ResultList.ItemsSource = display;
             if (sv != null && offset > 0) sv.ChangeView(null, offset, null, true);
         }
+
+        private bool _aggregationEnabled = true;
 
         private static T FindDescendant<T>(DependencyObject root) where T : class
         {
@@ -220,6 +257,18 @@ namespace legado_wp.Views
             if (Frame.CanGoBack) Frame.GoBack();
         }
 
+        private class PickedResult
+        {
+            public BookSource Source;
+            public Book Book;
+        }
+
+        private class TimedResult
+        {
+            public long Ms;
+            public PickedResult Result;
+        }
+
         private async void OnResultClick(object sender, ItemClickEventArgs e)
         {
             var item = e.ClickedItem as ResultItem;
@@ -228,26 +277,98 @@ namespace legado_wp.Views
             _cts?.Cancel();
             StopBtn.IsEnabled = false;
 
-            StatusHint.Text = "正在打开《" + item.Name + "》…";
-
-            var src = (await Storage.LoadSourcesAsync())
-                .FirstOrDefault(s => s.BookSourceUrl == item.SourceUrl);
-            if (src == null) { StatusHint.Text = "书源不存在"; return; }
-
             try
             {
-                var wb = new WebBook();
-                var book = await wb.GetBookInfoAsync(src, item).TimeoutAfter(15000);
-                var chapters = await wb.GetChapterListAsync(src, book).TimeoutAfter(20000);
-                if (chapters.Count == 0) { StatusHint.Text = "目录为空"; return; }
+                PickedResult picked;
+                if (item.Candidates != null && item.Candidates.Count > 1)
+                {
+                    // 同名聚合：多候选源自动择优（详情→目录→正文逐级验证，选最快的成功者）
+                    picked = await PickBestSourceAsync(item);
+                    if (picked == null) return;
+                }
+                else
+                {
+                    StatusHint.Text = "正在打开《" + item.Name + "》…";
+                    picked = await ProbeSourceAsync(item, fullToc: true);
+                    if (picked == null) return;
+                }
                 // 不自动入架：详情页由用户决定「加入书架」或「离线全文」
                 StatusHint.Text = "";
-                Frame.Navigate(typeof(TocPage), book);
+                Frame.Navigate(typeof(TocPage), picked.Book);
+            }
+            catch (OperationCanceledException)
+            {
+                StatusHint.Text = "已取消";
             }
             catch (Exception ex)
             {
                 StatusHint.Text = "打开失败：" + ex.Message;
             }
+        }
+
+        /// <summary>探测单个候选源：详情→目录→首章正文，全通过才算可用。</summary>
+        private async Task<PickedResult> ProbeSourceAsync(ResultItem item, bool fullToc)
+        {
+            var src = (await Storage.LoadSourcesAsync())
+                .FirstOrDefault(s => s.BookSourceUrl == item.SourceUrl);
+            if (src == null) return null;
+
+            var wb = new WebBook();
+            var book = await wb.GetBookInfoAsync(src, item).TimeoutAfter(15000);
+            var chapters = await wb.GetChapterListAsync(src, book, fullToc ? 20 : 2).TimeoutAfter(20000);
+            if (chapters.Count == 0) return null;
+            var text = await wb.GetContentAsync(src, chapters[0], 1).TimeoutAfter(15000);
+            if (string.IsNullOrWhiteSpace(text)) return null;
+            return new PickedResult { Source = src, Book = book };
+        }
+
+        /// <summary>
+        /// 同名聚合择优：并发 3 逐候选验证（有内容才成功），全部完成后取耗时最短者。
+        /// 每候选 12s 超时，进度实时上屏（后台线程回 UI 线程改状态栏）。
+        /// </summary>
+        private async Task<PickedResult> PickBestSourceAsync(ResultItem merged)
+        {
+            var candidates = merged.Candidates.Take(12).ToList(); // 老机器上限 12 个候选
+            StatusHint.Text = "正在择优《" + merged.Name + "》：0/" + candidates.Count + " 个源已验证…";
+
+            var results = new List<TimedResult>();
+            var resultsLock = new object();
+            var done = 0;
+            using (var sem = new SemaphoreSlim(3))
+            {
+                var tasks = candidates.Select(async cand =>
+                {
+                    try
+                    {
+                        await sem.WaitAsync();
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        var r = await ProbeSourceAsync(cand, fullToc: false);
+                        sw.Stop();
+                        if (r != null)
+                            lock (resultsLock) results.Add(new TimedResult { Ms = sw.ElapsedMilliseconds, Result = r });
+                    }
+                    catch { /* 单候选失败忽略 */ }
+                    finally
+                    {
+                        sem.Release();
+                        var d = Interlocked.Increment(ref done);
+                        var _ = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                            StatusHint.Text = "正在择优《" + merged.Name + "》："
+                                + d + "/" + candidates.Count + " 个源已验证…");
+                    }
+                }).ToList();
+                await Task.WhenAll(tasks);
+            }
+
+            var best = results.OrderBy(r => r.Ms).Select(r => r.Result).FirstOrDefault();
+            if (best == null)
+            {
+                StatusHint.Text = "「" + merged.Name + "」的 " + candidates.Count + " 个源都验证失败，请点其他结果";
+                return null;
+            }
+            StatusHint.Text = "已选最快源：" + best.Source.BookSourceName
+                + "（" + results.OrderBy(r => r.Ms).First().Ms + "ms）";
+            return best;
         }
     }
 

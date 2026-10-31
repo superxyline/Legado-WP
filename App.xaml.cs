@@ -80,6 +80,7 @@ namespace legado_wp
             if (frame == null)
             {
                 frame = new Frame();
+                frame.CacheSize = 2; // 缓存 TocPage/ReaderPage，退出阅读器回目录不重拉
                 frame.Navigated += (s, args) => UpdateBackButtonVisibility();
                 Window.Current.Content = frame;
             }

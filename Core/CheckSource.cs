@@ -72,11 +72,12 @@ namespace legado_wp.Core
             return r;
         }
 
-        /// <summary>并发批量体检（回调在调用方线程上下文）。</summary>
+        /// <summary>并发批量体检（回调在调用方线程上下文）。results 用锁保护（多线程 Add）。</summary>
         public static async Task<List<Result>> CheckAllAsync(
             List<BookSource> sources, string key, int concurrency, Action<Result> onEach, CancellationToken ct)
         {
             var results = new List<Result>();
+            var resultsLock = new object();
             var queue = new Queue<BookSource>(sources);
             var tasks = new List<Task>();
             using (var sem = new SemaphoreSlim(concurrency))
@@ -92,7 +93,7 @@ namespace legado_wp.Core
                         try
                         {
                             var r = await CheckAsync(src, wb, key, ct);
-                            results.Add(r);
+                            lock (resultsLock) results.Add(r);
                             onEach?.Invoke(r);
                         }
                         finally { sem.Release(); }
