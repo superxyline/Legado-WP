@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
 using Windows.Graphics.Imaging;
+using Windows.Media;
 using Windows.Media.Capture;
 using Windows.Media.Devices;
 using Windows.Media.MediaProperties;
@@ -31,6 +32,7 @@ namespace legado_wp.Views
         private int _frameCount;
         private int _decodeCount;
         private string _lastError = "";
+        private VideoEncodingProperties _previewProps;
 
         public ScanPage()
         {
@@ -84,6 +86,14 @@ namespace legado_wp.Views
                 Preview.Source = _media;
                 await _media.StartPreviewAsync();
 
+                // 记录预览流实际尺寸：取帧必须按这个尺寸构造 VideoFrame（官方 GetPreviewFrame 示例模式）
+                try
+                {
+                    _previewProps = _media.VideoDeviceController
+                        .GetMediaStreamProperties(MediaStreamType.VideoPreview) as VideoEncodingProperties;
+                }
+                catch { _previewProps = null; }
+
                 // 连续对焦（微距档）：二维码近距离扫码的关键，默认对焦在远处时码是糊的
                 try
                 {
@@ -135,12 +145,19 @@ namespace legado_wp.Views
             _busy = true;
             try
             {
-                using (var preview = await _media.GetPreviewFrameAsync())
+                // 无参 GetPreviewFrameAsync 返回 GPU 帧（SoftwareBitmap 恒为 null），
+                // 必须按预览流尺寸构造 Bgra8 的 VideoFrame 传入才能拿到 CPU 可读帧
+                var w = (int)(_previewProps?.Width ?? 640);
+                var h = (int)(_previewProps?.Height ?? 480);
+                if (w <= 0 || h <= 0) { w = 640; h = 480; }
+
+                using (var request = new VideoFrame(BitmapPixelFormat.Bgra8, w, h))
                 {
-                    var bmp = preview.SoftwareBitmap; // 原生格式多为 NV12
+                    await _media.GetPreviewFrameAsync(request);
+                    var bmp = request.SoftwareBitmap;
                     if (bmp == null)
                     {
-                        _lastError = "预览帧为空";
+                        _lastError = "预览帧为空(带参)";
                         UpdateDebugStatus(0, 0);
                         return;
                     }
@@ -148,12 +165,12 @@ namespace legado_wp.Views
                         ? bmp
                         : SoftwareBitmap.Convert(bmp, BitmapPixelFormat.Bgra8);
 
-                    var w = bgra.PixelWidth;
-                    var h = bgra.PixelHeight;
-                    var bytes = new byte[4 * w * h];
+                    var bw = bgra.PixelWidth;
+                    var bh = bgra.PixelHeight;
+                    var bytes = new byte[4 * bw * bh];
                     bgra.CopyToBuffer(bytes.AsBuffer());
 
-                    var source = new RGBLuminanceSource(bytes, w, h, RGBLuminanceSource.BitmapFormat.BGRA32);
+                    var source = new RGBLuminanceSource(bytes, bw, bh, RGBLuminanceSource.BitmapFormat.BGRA32);
                     var result = _reader.Decode(source);
                     _frameCount++;
                     _lastError = "";
@@ -164,7 +181,7 @@ namespace legado_wp.Views
                         await HandleScanResultAsync(result.Text.Trim());
                         return;
                     }
-                    UpdateDebugStatus(w, h);
+                    UpdateDebugStatus(bw, bh);
                 }
             }
             catch (Exception ex)
