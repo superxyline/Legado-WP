@@ -136,16 +136,9 @@ namespace legado_wp.Views
             Frame.Navigate(typeof(TocPage), book);
         }
 
-        private async void OnBookHolding(object sender, HoldingRoutedEventArgs e)
-        {
-            if (e.HoldingState != Windows.UI.Input.HoldingState.Started) return;
-            await ConfirmRemove(sender);
-        }
-
-        private async void OnBookRightTapped(object sender, RightTappedRoutedEventArgs e)
-        {
-            await ConfirmRemove(sender);
-        }
+        // 长按/右键直接交给 ContextFlyout（触摸长按自动弹出菜单）。
+        // ⚠️ 不能再挂 Holding/RightTapped 弹 ContentDialog：与 ContextFlyout 弹出竞态，
+        // 弹窗叠弹窗在 15063 上直接闪退（0.0.15.3 实锤）。
 
         private async void OnRemoveMenu(object sender, RoutedEventArgs e)
         {

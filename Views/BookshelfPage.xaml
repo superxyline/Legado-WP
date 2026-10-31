@@ -36,7 +36,7 @@
         <ListView x:Name="ShelfList" Grid.Row="2" IsItemClickEnabled="True" ItemClick="OnBookClick" Padding="8">
             <ListView.ItemTemplate>
                 <DataTemplate>
-                    <StackPanel Margin="0,8" Holding="OnBookHolding" RightTapped="OnBookRightTapped">
+                    <StackPanel Margin="0,8">
                         <StackPanel.ContextFlyout>
                             <MenuFlyout>
                                 <MenuFlyoutItem Text="设置分组" Click="OnGroupMenu"/>
