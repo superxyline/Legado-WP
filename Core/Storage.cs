@@ -225,6 +225,28 @@ namespace legado_wp.Core
             await SaveProgressAsync(progress);
         }
 
+        // ---------------- 精确续读位置（章内页/滚动偏移）----------------
+
+        public class ReadingPos
+        {
+            public int Chapter;      // 章索引（与 progress.json 双写，恢复时校验）
+            public int Page;         // 分页模式下的页索引；滚动模式为 0
+            public double Offset;    // 滚动模式的纵向偏移；分页模式为 0
+        }
+
+        public static Task<Dictionary<string, ReadingPos>> LoadPosAsync()
+        {
+            return ReadJsonAsync<Dictionary<string, ReadingPos>>("pos.json")
+                .ContinueWith(t => t.Result ?? new Dictionary<string, ReadingPos>());
+        }
+
+        public static async Task SavePosAsync(string bookUrl, ReadingPos pos)
+        {
+            var map = await LoadPosAsync();
+            map[bookUrl] = pos;
+            await WriteJsonAsync("pos.json", map);
+        }
+
         // ---------------- 书签 ----------------
 
         public class Bookmark

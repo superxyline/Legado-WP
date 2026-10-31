@@ -18,7 +18,7 @@
         </Border>
 
         <!-- 滚动模式 -->
-        <ScrollViewer x:Name="Scroller" Grid.Row="1" Padding="16,12">
+        <ScrollViewer x:Name="Scroller" Grid.Row="1" Padding="16,12" ViewChanged="OnScrollerViewChanged">
             <TextBlock x:Name="Content" FontSize="21" LineHeight="38" TextWrapping="Wrap"/>
         </ScrollViewer>
 

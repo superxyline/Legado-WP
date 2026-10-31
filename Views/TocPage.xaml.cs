@@ -23,6 +23,9 @@ namespace legado_wp.Views
             public BookSource Source;
             public List<BookChapter> Chapters;
             public int StartIndex;
+            /// <summary>精确续读：章内页索引（-1=不恢复）；滚动模式下 TargetOffset>0 用偏移。</summary>
+            public int TargetPage = -1;
+            public double TargetOffset = -1;
         }
 
         private class ChangeSourceItem : SearchBook
@@ -73,6 +76,7 @@ namespace legado_wp.Views
                     BookMeta.Text = (book.Author ?? "") + " · 本地书 · " + chapters.Count + " 章";
                     StatusHint.Text = "";
                     _payload = new TocPayload { Book = book, Source = null, Chapters = chapters, StartIndex = start };
+                    await ApplyRestorePosAsync(book, start, _payload);
                     _inShelf = (await Storage.LoadShelfAsync()).Any(b => b.BookUrl == book.BookUrl);
                     UpdateShelfButton();
                     OfflineBtn.Visibility = Visibility.Collapsed;
@@ -130,6 +134,7 @@ namespace legado_wp.Views
                                 + " · 源：" + (source.BookSourceName ?? "");
                 StatusHint.Text = "";
                 _payload = new TocPayload { Book = book, Source = source, Chapters = chapters, StartIndex = start };
+                await ApplyRestorePosAsync(book, start, _payload);
 
                 _inShelf = (await Storage.LoadShelfAsync()).Any(b => b.BookUrl == book.BookUrl);
                 UpdateShelfButton();
@@ -154,6 +159,22 @@ namespace legado_wp.Views
         {
             var meta = await OfflineStore.LoadMetaAsync(book.BookUrl);
             return meta?.Source;
+        }
+
+        /// <summary>书架直达（AutoReadOnce）时读取精确续读位置：章校验一致才恢复页/偏移。</summary>
+        private static async Task ApplyRestorePosAsync(Book book, int start, TocPayload payload)
+        {
+            if (!AutoReadOnce) return;
+            try
+            {
+                var posMap = await Storage.LoadPosAsync();
+                if (posMap.TryGetValue(book.BookUrl, out var p) && p != null && p.Chapter == start)
+                {
+                    payload.TargetPage = p.Page;
+                    payload.TargetOffset = p.Offset;
+                }
+            }
+            catch { }
         }
 
         private void UpdateShelfButton()

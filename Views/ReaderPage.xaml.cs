@@ -239,6 +239,8 @@ namespace legado_wp.Views
             _payload = e.Parameter as TocPage.TocPayload;
             if (_payload == null) { Frame.GoBack(); return; }
             _index = _payload.StartIndex;
+            _pendingPage = _payload.TargetPage;
+            _pendingOffset = _payload.TargetOffset;
             ApplyFont();
             ApplyTheme();
             ApplyMode(false);
@@ -401,6 +403,7 @@ namespace legado_wp.Views
             if (_pageIndex >= 0 && _pageIndex < _pages.Count)
                 PagerContent.Text = _pages[_pageIndex];
             UpdateFooter();
+            QueueSavePos(); // 翻页位置防抖保存（精确续读）
         }
 
         // ---------------- 翻页交互 ----------------
@@ -544,7 +547,7 @@ namespace legado_wp.Views
                 if (_mode == ReaderMode.Scroll)
                 {
                     Content.Text = FormatText(_chapterText);
-                    Scroller.ChangeView(null, 0, null, true);
+                    RestorePendingPos();
                 }
                 else
                 {
@@ -554,6 +557,7 @@ namespace legado_wp.Views
                         _pageIndex = _pages.Count - 1;
                         _prevChapterToLast = false;
                     }
+                    RestorePendingPos();
                     ShowCurrentPage();
                 }
                 UpdateFooter();
@@ -577,6 +581,81 @@ namespace legado_wp.Views
         {
             if (_payload?.Book == null) return;
             _ = Storage.SaveProgressAsync(_payload.Book.BookUrl, _index);
+            SaveCurrentPos();
+        }
+
+        // ---------------- 精确续读（章内页/滚动偏移）----------------
+
+        private int _pendingPage = -1;
+        private double _pendingOffset = -1;
+        private DispatcherTimer _posDebounce;
+
+        /// <summary>写当前阅读位置（章+页/滚动偏移）。翻页/滚动经防抖触发，离开页面立即触发。</summary>
+        private void SaveCurrentPos()
+        {
+            if (_payload?.Book == null) return;
+            var pos = new Storage.ReadingPos
+            {
+                Chapter = _index,
+                Page = _mode == ReaderMode.Scroll ? 0 : _pageIndex,
+                Offset = _mode == ReaderMode.Scroll ? Scroller.VerticalOffset : 0
+            };
+            _ = Storage.SavePosAsync(_payload.Book.BookUrl, pos);
+        }
+
+        private void QueueSavePos()
+        {
+            if (_posDebounce == null)
+            {
+                _posDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
+                _posDebounce.Tick += (s, e) => { _posDebounce.Stop(); SaveCurrentPos(); };
+            }
+            _posDebounce.Stop();
+            _posDebounce.Start();
+        }
+
+        /// <summary>滚动模式：滚动结束 800ms 后存位置。</summary>
+        private void OnScrollerViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
+        {
+            if (!e.IsIntermediate) QueueSavePos();
+        }
+
+        /// <summary>章节加载完成后恢复位置：分页跳到目标页，滚动定位到偏移（布局未就绪则等首次 ViewChanged）；无待恢复则归零。</summary>
+        private void RestorePendingPos()
+        {
+            var hadPending = _pendingPage >= 0 || _pendingOffset > 0;
+            if (!hadPending)
+            {
+                if (_mode == ReaderMode.Scroll) Scroller.ChangeView(null, 0, null, true);
+                return;
+            }
+
+            if (_mode != ReaderMode.Scroll)
+            {
+                if (_pendingPage >= 0 && _pendingPage < _pages.Count)
+                {
+                    _pageIndex = _pendingPage;
+                    ShowCurrentPage();
+                }
+            }
+            else
+            {
+                var off = _pendingOffset;
+                Scroller.ChangeView(null, off > 0 ? off : 0, null, true);
+                if (off > 0 && Scroller.ExtentHeight <= off)
+                {
+                    // 内容布局未完成，等首次 ViewChanged 再定位
+                    System.EventHandler<ScrollViewerViewChangedEventArgs> h = null;
+                    h = (s, ev) =>
+                    {
+                        Scroller.ViewChanged -= h;
+                        if (Scroller.ExtentHeight > off) Scroller.ChangeView(null, off, null, true);
+                    };
+                    Scroller.ViewChanged += h;
+                }
+            }
+            _pendingPage = -1;
+            _pendingOffset = -1;
         }
 
         private void OnPrev(object sender, RoutedEventArgs e)
