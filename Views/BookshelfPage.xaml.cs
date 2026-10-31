@@ -70,6 +70,8 @@ namespace legado_wp.Views
                 q = q.Where(b => (b.Group ?? "") == _group);
             var list = q.OrderByDescending(b => string.IsNullOrEmpty(b.LastChapter) ? 0 : 1)
                 .ThenBy(b => b.Name).ToList();
+            // 先清选中再换 ItemsSource，避免多选模式下替换列表触发崩溃
+            ShelfList.SelectedItems.Clear();
             ShelfList.ItemsSource = list;
             var empty = _shelf.Count == 0;
             EmptyHint.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
@@ -165,11 +167,17 @@ namespace legado_wp.Views
         private void OnManageClick(object sender, RoutedEventArgs e)
         {
             _manageMode = !_manageMode;
-            ManageBar.Visibility = _manageMode ? Visibility.Visible : Visibility.Collapsed;
-            ShelfList.SelectionMode = _manageMode
-                ? ListViewSelectionMode.Multiple : ListViewSelectionMode.Single;
-            if (!_manageMode) ShelfList.SelectedItems.Clear();
-            ApplyFilter();
+            try
+            {
+                ManageBar.Visibility = _manageMode ? Visibility.Visible : Visibility.Collapsed;
+                // UWP 15063 坑：SelectionMode Multiple→Single 时若仍有选中项会直接崩溃，
+                // 必须先清空选中再切模式
+                if (!_manageMode) ShelfList.SelectedItems.Clear();
+                ShelfList.SelectionMode = _manageMode
+                    ? ListViewSelectionMode.Multiple : ListViewSelectionMode.Single;
+                ApplyFilter();
+            }
+            catch { _manageMode = false; }
         }
 
         private void OnSelectAllClick(object sender, RoutedEventArgs e)

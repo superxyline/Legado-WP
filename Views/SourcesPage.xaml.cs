@@ -32,6 +32,8 @@ namespace legado_wp.Views
             try
             {
                 _sources = await Storage.LoadSourcesAsync();
+                // 先清选中再换 ItemsSource，避免多选模式下替换列表触发崩溃
+                SourceList.SelectedItems.Clear();
                 SourceList.ItemsSource = _sources;
                 StatusHint.Visibility = _sources.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
                 SourceList.Visibility = _sources.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
@@ -145,22 +147,28 @@ namespace legado_wp.Views
         private void OnManageClick(object sender, RoutedEventArgs e)
         {
             _manageMode = !_manageMode;
-            if (_manageMode)
+            try
             {
-                ManageBar.Visibility = Visibility.Visible;
-                SourceList.SelectionMode = ListViewSelectionMode.Multiple;
-                ManageBtn.Content = "完成";
-                StatusHint.Text = "点按书源进行勾选";
-                StatusHint.Visibility = Visibility.Visible;
+                if (_manageMode)
+                {
+                    ManageBar.Visibility = Visibility.Visible;
+                    SourceList.SelectionMode = ListViewSelectionMode.Multiple;
+                    ManageBtn.Content = "完成";
+                    StatusHint.Text = "点按书源进行勾选";
+                    StatusHint.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    ManageBar.Visibility = Visibility.Collapsed;
+                    // UWP 15063 坑：SelectionMode Multiple→Single 时若仍有选中项会直接崩溃，
+                    // 必须先清空选中再切模式
+                    SourceList.SelectedItems.Clear();
+                    SourceList.SelectionMode = ListViewSelectionMode.Single;
+                    ManageBtn.Content = "管理";
+                    StatusHint.Visibility = _sources.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+                }
             }
-            else
-            {
-                ManageBar.Visibility = Visibility.Collapsed;
-                SourceList.SelectionMode = ListViewSelectionMode.Single;
-                SourceList.SelectedItems.Clear();
-                ManageBtn.Content = "管理";
-                StatusHint.Visibility = _sources.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            }
+            catch { /* 模式切换异常不崩，退回单选 */ _manageMode = false; }
         }
 
         private void OnSelectAllClick(object sender, RoutedEventArgs e)
