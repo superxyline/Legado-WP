@@ -73,6 +73,9 @@ namespace legado_wp
                 // 0.0.12.0：XPath 迷你引擎
                 foreach (var line in Core.XPathCases.Run()) Log(line);
 
+                // 0.0.13.0：净化规则 / java.* 扩展 / jsLib / 书源变量
+                foreach (var line in await Core.Round1Cases.Run()) Log(line);
+
                 await FlushLogAsync();
             }
             catch (Exception ex)

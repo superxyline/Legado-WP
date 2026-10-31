@@ -56,6 +56,11 @@ namespace legado_wp.Views
             Frame.Navigate(typeof(SourcesPage));
         }
 
+        private void OnReplaceClick(object sender, RoutedEventArgs e)
+        {
+            Frame.Navigate(typeof(ReplacePage));
+        }
+
         // ---------------- 备份 / 恢复 ----------------
 
         /// <summary>导出书源+书架+进度+书签为 JSON 文件（用户选位置保存）。</summary>

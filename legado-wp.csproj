@@ -63,6 +63,9 @@
     <Compile Include="Core\Analyzers.cs" />
     <Compile Include="Core\AnalyzeRule.cs" />
     <Compile Include="Core\XPathCases.cs" />
+    <Compile Include="Core\ReplaceRule.cs" />
+    <Compile Include="Core\ContentProcessor.cs" />
+    <Compile Include="Core\Round1Cases.cs" />
     <Compile Include="Core\M1Cases.cs" />
     <Compile Include="Core\AnalyzeUrl.cs" />
     <Compile Include="Core\HttpHelper.cs" />
@@ -82,6 +85,7 @@
     <Compile Include="Views\ReaderPage.xaml.cs"><DependentUpon>ReaderPage.xaml</DependentUpon></Compile>
     <Compile Include="Views\SourcesPage.xaml.cs"><DependentUpon>SourcesPage.xaml</DependentUpon></Compile>
     <Compile Include="Views\ScanPage.xaml.cs"><DependentUpon>ScanPage.xaml</DependentUpon></Compile>
+    <Compile Include="Views\ReplacePage.xaml.cs"><DependentUpon>ReplacePage.xaml</DependentUpon></Compile>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App.xaml.cs"><DependentUpon>App.xaml</DependentUpon></Compile>
@@ -117,6 +121,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Views\ScanPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\ReplacePage.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

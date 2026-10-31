@@ -26,6 +26,8 @@ namespace legado_wp.Core
 
         public object Content { get; private set; }
         public string BaseUrl { get; set; }
+        /// <summary>所属书源（非空时 {{js}}/&lt;js&gt; 在 jsLib 共享作用域执行，可访问 source/java.getVariable）。</summary>
+        public BookSource Source { get; set; }
 
         private readonly Dictionary<string, string> _variables = new Dictionary<string, string>();
         private readonly List<string> _unsupported = new List<string>();
@@ -205,8 +207,8 @@ namespace legado_wp.Core
                     }
                     else if (regType == JsRuleType)
                     {
-                        // {{js}} 内嵌表达式（M3：Jint 执行，结果拼回规则串）
-                        var jsVal = JsEngine.Eval(_ruleParam[index], result, host.BaseUrl);
+                        // {{js}} 内嵌表达式（M3：Jint 执行，结果拼回规则串；0.0.13 起支持 jsLib 作用域）
+                        var jsVal = host.EvalJs(_ruleParam[index], result);
                         infoVal.Insert(0, jsVal == null ? "" : jsVal.ToString());
                     }
                     else if (regType == GetRuleType)
@@ -313,13 +315,21 @@ namespace legado_wp.Core
             return resultStr;
         }
 
+        /// <summary>JS 求值：有书源上下文时走 jsLib 共享作用域。</summary>
+        private object EvalJs(string js, object result)
+        {
+            return Source != null
+                ? JsEngine.EvalWithSource(js, result, BaseUrl, Source)
+                : JsEngine.Eval(js, result, BaseUrl);
+        }
+
         private object Apply(SourceRule sr, string rule, object result)
         {
             switch (sr.Mode)
             {
                 case RuleMode.Js:
                     {
-                        var v = JsEngine.Eval(rule, result, BaseUrl);
+                        var v = EvalJs(rule, result);
                         return v == null ? "" : v.ToString();
                     }
                 case RuleMode.Json:

@@ -41,6 +41,7 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel>
                             <TextBlock Text="{Binding BookSourceName}" FontSize="16" FontWeight="SemiBold"/>
@@ -49,7 +50,9 @@
                         </StackPanel>
                         <CheckBox Grid.Column="1" IsChecked="{Binding Enabled, Mode=TwoWay}"
                                   Checked="OnToggle" Unchecked="OnToggle" Margin="8,0"/>
-                        <Button Grid.Column="2" Content="删除" FontSize="12" Background="Transparent"
+                        <Button Grid.Column="2" Content="变量" FontSize="12" Background="Transparent"
+                                Click="OnVariableClick"/>
+                        <Button Grid.Column="3" Content="删除" FontSize="12" Background="Transparent"
                                 Click="OnDeleteClick"/>
                     </Grid>
                 </DataTemplate>

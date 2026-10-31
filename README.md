@@ -32,9 +32,10 @@ Legado-WP 是一个用 C# / XAML 从零实现的 Windows 10 (UWP) 小说阅读�
 | 书架 | 长按移出（保留离线数据）；**备份/恢复**（书源+书架+进度+书签+阅读设置导出 JSON 文件，恢复支持合并/替换两种策略） |
 | 备份恢复 | 书架页「备份」导出全部数据为 JSON；「恢复」从文件导入，可选合并或整体替换 |
 | 扫码导入 | 书源页「扫码导入」：相机扫二维码识别书源 URL（或书源 JSON 本体）直接导入；PC 端任意二维码工具生成即可 |
-| 阅读器增强 | 实体相机键翻页（Lumia 两段快门：半按=上一页，全按=下一页）；阅读时屏幕常亮 |
+| 阅读器增强 | 实体相机键翻页（Lumia 两段快门：半按=上一页，全按=下一页）；阅读时屏幕常亮；**自动翻页**（慢/中/快三档，滚动与分页模式都支持）；**四套阅读主题**（羊皮/纯白/护眼绿/夜间）；**行距三档**（标准/加宽/宽松）；段首缩进开关 |
+| 替换净化 | **净化规则管理**（新增/编辑/启停/删除）：正则或字面替换正文与章节标题，支持作用域（按书名/书源 URL 片段过滤）、按序套用；规则随备份导出 |
 | 编码 | GBK/GB2312 站点自动识别与请求编码 |
-| JS 引擎 | Jint 执行书源中的 `{{js}}` / `<js>` / `@js:` 片段，内置 `java.*` 桥核心集（md5/SHA/HMAC/AES/DES/RSA、base64/hex、`java.ajax`、Cookie 等） |
+| JS 引擎 | Jint 执行书源中的 `{{js}}` / `<js>` / `@js:` 片段；**jsLib 共享作用域**（书源公共 JS 函数库跨调用复用，JS 里可访问 `source` 对象）；**书源变量**（书源页可编辑，`java.getVariable()/setVariable()` 读写并持久化）；`java.*` 桥（md5/SHA/HMAC/AES/DES/RSA、base64/hex、digestHex 任意算法、`ajax/ajaxAll`、`get/post` 带头、`head`、`connect`、gzip/deflate 解压、Cookie 等） |
 | 规则语法 | Default（class/tag/id/text/children + 新旧索引）、`@CSS:`、`$.` JSONPath、**XPath（`@XPath:` / `/` 开头，覆盖书源常用子集：`//tag`、`[@a='v']`、`contains()/starts-with()`、`[n]/[last()]`、`text()`、`@attr`、`\|` 并集）**、`##` 替换、`@put/@get` 变量、`&&/\|\|/%%` 组合 |
 
 ## 书源兼容说明
@@ -44,7 +45,7 @@ Legado-WP 是一个用 C# / XAML 从零实现的 Windows 10 (UWP) 小说阅读�
 当前**不支持或部分支持**的写法（会持续补齐）：
 
 - 依赖 `webView` / `startBrowser` 的书源（需要内置浏览器，暂未实现）
-- `java.*` 桥未覆盖的方法（压缩包读取、文件系统、`queryTTF` 字体反爬等）
+- `java.*` 桥未覆盖的方法（zip/rar 压缩包读取、文件系统、`queryTTF` 字体反爬等；gzip/deflate 已支持）
 - 繁简转换 `java.t2s / s2t`（暂原样返回）
 - 音量键翻页：Windows 10 Mobile 的 UWP 不向应用暴露音量键事件（系统保留），已改用 Lumia 实体两段相机键翻页
 
@@ -156,13 +157,13 @@ CodeBuddy / Cursor / Copilot 等），它能代你定位并给出修复命令：
 ## 路线图
 
 - [x] XPath 规则支持（`@XPath:`，书源常用子集）
-- [x] 备份 / 恢复（书源+书架+进度+书签+阅读设置）
+- [x] 备份 / 恢复（书源+书架+进度+书签+净化规则+阅读设置）
 - [x] 扫码导入书源（相机二维码识别）
-- [ ] `java.*` 桥扩展（压缩包解压、ajaxAll、字体反爬 `queryTTF`）
-- [ ] 替换净化规则（ReplaceRule，广告/错字批量净化）
-- [ ] 阅读主题 / 排版配置（行距、缩进、背景色、页眉页脚）
-- [ ] jsLib 共享作用域 + 书源变量（社区加密类书源依赖）
-- [ ] 自动翻页 / 自动滚动
+- [x] 替换净化规则（ReplaceRule：正则/字面、作用域、启停、随备份）
+- [x] 阅读主题 / 排版配置（四套主题、行距三档、缩进开关）
+- [x] jsLib 共享作用域 + 书源变量（`java.getVariable/setVariable` 持久化）
+- [x] 自动翻页 / 自动滚动（三档速度）
+- [ ] `java.*` 桥扩展（zip/rar 压缩包读取、字体反爬 `queryTTF`）
 - [ ] 系统语音朗读（TTS）
 - [ ] 书源校验（批量体检，禁用坏源）
 - [ ] 章节更新检测（打开应用时批量检查新章）
@@ -188,7 +189,8 @@ Core/
   SearchService.cs   全源并发搜索（逐源回调 + 取消，支撑流式结果与换源）
   JsExtensions.cs    java.* 桥（WinRT 加密：MD5/SHA/HMAC/AES/RSA + ajax）
   JsEngine.cs        Jint 封装（变量绑定 + fetcher 注入）
-  Storage.cs         书源/书架/进度/书签持久化
+  Storage.cs         书源/书架/进度/书签/净化规则持久化 + 备份恢复
+  ContentProcessor.cs 替换净化规则套用（正则/字面、书名/书源作用域）
   OfflineStore.cs    离线全文缓存（自包含 meta：源+目录）
 Views/               书架/搜索/详情目录/阅读器/书源管理 五页面
 ```

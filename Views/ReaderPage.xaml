@@ -58,6 +58,7 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <Button Grid.Column="0" Content="目录" Background="Transparent" Click="OnToc" FontSize="13"/>
             <Button Grid.Column="1" Content="排版" Background="Transparent" Click="OnLayoutClick" FontSize="13">
@@ -66,10 +67,30 @@
                         <MenuFlyoutItem Text="上下滑动" Click="OnModeScroll"/>
                         <MenuFlyoutItem Text="平移覆盖" Click="OnModeCover"/>
                         <MenuFlyoutItem Text="翻页动画" Click="OnModeCurl"/>
+                        <MenuFlyoutSeparator/>
+                        <MenuFlyoutItem Text="主题：羊皮" Click="OnThemeParchment"/>
+                        <MenuFlyoutItem Text="主题：纯白" Click="OnThemeWhite"/>
+                        <MenuFlyoutItem Text="主题：护眼" Click="OnThemeGreen"/>
+                        <MenuFlyoutItem Text="主题：夜间" Click="OnThemeDark"/>
+                        <MenuFlyoutSeparator/>
+                        <MenuFlyoutItem Text="行距：标准" Click="OnLineTight"/>
+                        <MenuFlyoutItem Text="行距：加宽" Click="OnLineWide"/>
+                        <MenuFlyoutItem Text="行距：宽松" Click="OnLineLoose"/>
+                        <MenuFlyoutItem Text="段首缩进 开/关" Click="OnToggleIndent"/>
                     </MenuFlyout>
                 </Button.Flyout>
             </Button>
-            <Button Grid.Column="2" Content="书签" Background="Transparent" Click="OnBookmarkClick" FontSize="13">
+            <Button x:Name="AutoBtn" Grid.Column="2" Content="自动" Background="Transparent" FontSize="13">
+                <Button.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="停止自动翻页" Click="OnAutoStop"/>
+                        <MenuFlyoutItem Text="慢（12 秒/页）" Click="OnAutoSlow"/>
+                        <MenuFlyoutItem Text="中（8 秒/页）" Click="OnAutoMid"/>
+                        <MenuFlyoutItem Text="快（4 秒/页）" Click="OnAutoFast"/>
+                    </MenuFlyout>
+                </Button.Flyout>
+            </Button>
+            <Button Grid.Column="3" Content="书签" Background="Transparent" Click="OnBookmarkClick" FontSize="13">
                 <Button.Flyout>
                     <MenuFlyout>
                         <MenuFlyoutItem Text="添加书签（本章）" Click="OnAddBookmark"/>

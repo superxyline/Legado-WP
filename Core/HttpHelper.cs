@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -12,6 +13,7 @@ namespace legado_wp.Core
         public string Url;
         public string Body;
         public int Code;
+        public Dictionary<string, string> Headers;
         public bool IsSuccess => Code >= 200 && Code < 300;
         public StrResponse(string url, string body, int code = 200) { Url = url; Body = body; Code = code; }
     }
@@ -50,8 +52,10 @@ namespace legado_wp.Core
 
         public async Task<StrResponse> GetAsync(AnalyzeUrl au)
         {
-            var req = new HttpRequestMessage(
-                au.IsPost() ? HttpMethod.Post : HttpMethod.Get, au.IsPost() ? au.UrlNoQuery : au.Url);
+            var method = au.IsPost() ? HttpMethod.Post
+                : string.Equals(au.Method, "HEAD", StringComparison.OrdinalIgnoreCase) ? HttpMethod.Head
+                : HttpMethod.Get;
+            var req = new HttpRequestMessage(method, au.IsPost() ? au.UrlNoQuery : au.Url);
 
             foreach (var kv in au.HeaderMap)
                 req.Headers.TryAddWithoutValidation(kv.Key, kv.Value);
@@ -105,7 +109,23 @@ namespace legado_wp.Core
                 var bytes = await resp.Content.ReadAsByteArrayAsync();
                 var enc = ResolveCharset(resp.Content?.Headers?.ContentType?.CharSet, au.Charset, bytes);
                 var body = enc.GetString(bytes);
-                return new StrResponse(resp.RequestMessage.RequestUri.ToString(), body, (int)resp.StatusCode);
+
+                // 响应头收集（java.head 用：小写键，去重合并）
+                var headerMap = new Dictionary<string, string>();
+                try
+                {
+                    foreach (var h in resp.Headers)
+                        headerMap[h.Key.ToLowerInvariant()] = string.Join(", ", h.Value);
+                    if (resp.Content?.Headers != null)
+                        foreach (var h in resp.Content.Headers)
+                            headerMap[h.Key.ToLowerInvariant()] = string.Join(", ", h.Value);
+                }
+                catch { }
+
+                return new StrResponse(resp.RequestMessage.RequestUri.ToString(), body, (int)resp.StatusCode)
+                {
+                    Headers = headerMap
+                };
             }
         }
 

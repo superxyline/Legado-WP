@@ -17,6 +17,8 @@ namespace legado_wp.Core
         [JsonProperty("enabledExplore")] public bool EnabledExplore { get; set; } = true;
         [JsonProperty("header")] public string Header { get; set; }
         [JsonProperty("loginUrl")] public string LoginUrl { get; set; }
+        [JsonProperty("jsLib")] public string JsLib { get; set; }
+        [JsonProperty("variable")] public string Variable { get; set; }
         [JsonProperty("bookUrlPattern")] public string BookUrlPattern { get; set; }
         [JsonProperty("customOrder")] public int CustomOrder { get; set; }
         [JsonProperty("weight")] public int Weight { get; set; }

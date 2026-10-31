@@ -6,12 +6,19 @@ using Jint;
 namespace legado_wp.Core
 {
     /// <summary>
-    /// Jint 封装：引擎复用 + java/cookie/result/baseUrl 绑定 + fetcher 注入口（测试）。
+    /// Jint 封装：引擎复用 + java/cookie/result/baseUrl/source 绑定 + fetcher 注入口（测试）。
+    /// 0.0.13.0：书源 jsLib 共享作用域（按源缓存的独立 Engine）+ CurrentSource（java.getVariable）。
     /// </summary>
     public static class JsEngine
     {
         private static Engine _engine;
         private static readonly object Lock = new object();
+
+        /// <summary>书源专用引擎缓存：key = bookSourceUrl + '#' + jsLib 内容哈希。</summary>
+        private static readonly Dictionary<string, Engine> SourceEngines = new Dictionary<string, Engine>();
+
+        /// <summary>当前正在执行的书源（java.getVariable/setVariable 用；全局锁下安全）。</summary>
+        public static BookSource CurrentSource { get; private set; }
 
         /// <summary>测试注入的取页器；null 时用真实 HttpClient。</summary>
         public static IPageFetcher FetcherOverride;
@@ -64,6 +71,74 @@ namespace legado_wp.Core
                 {
                     return null;
                 }
+            }
+        }
+
+        /// <summary>
+        /// 带书源上下文执行：jsLib 预载进共享作用域（按源缓存），绑定 source 变量。
+        /// 供规则里的 {{js}}/&lt;js&gt;/@js: 与书源 JS 函数库联动。
+        /// </summary>
+        public static object EvalWithSource(string js, object result, string baseUrl, BookSource source)
+        {
+            if (string.IsNullOrEmpty(js)) return null;
+            lock (Lock)
+            {
+                try
+                {
+                    var engine = GetSourceEngine(source);
+                    CurrentSource = source;
+                    engine.SetValue("result", result);
+                    engine.SetValue("baseUrl", baseUrl ?? "");
+                    engine.SetValue("source", source);
+                    try
+                    {
+                        var v = engine.Execute(js).GetCompletionValue();
+                        return Unwrap(v, engine);
+                    }
+                    finally
+                    {
+                        CurrentSource = null;
+                    }
+                }
+                catch
+                {
+                    CurrentSource = null;
+                    return null;
+                }
+            }
+        }
+
+        /// <summary>书源引擎：jsLib 变化（lastUpdateTime/hash）时重建。</summary>
+        private static Engine GetSourceEngine(BookSource source)
+        {
+            var jsLib = source?.JsLib ?? "";
+            var key = (source?.BookSourceUrl ?? "") + "#" + Hash(jsLib);
+            Engine engine;
+            if (!SourceEngines.TryGetValue(key, out engine))
+            {
+                engine = new Engine(cfg => cfg.TimeoutInterval(TimeSpan.FromSeconds(20)));
+                engine.SetValue("java", new JsExtensions());
+                engine.SetValue("cookie", new CookieBridge());
+                if (jsLib.Length > 0)
+                {
+                    try { engine.Execute(jsLib); }
+                    catch { /* jsLib 本身报错：后续调用退化为无库执行 */ }
+                }
+                // 缓存上限保护（老机器内存）：超过 32 个源重置
+                if (SourceEngines.Count >= 32) SourceEngines.Clear();
+                SourceEngines[key] = engine;
+            }
+            return engine;
+        }
+
+        private static string Hash(string s)
+        {
+            if (s == null || s.Length == 0) return "0";
+            unchecked
+            {
+                uint h = 2166136261;
+                foreach (var c in s) { h ^= c; h *= 16777619; }
+                return h.ToString("x8");
             }
         }
 

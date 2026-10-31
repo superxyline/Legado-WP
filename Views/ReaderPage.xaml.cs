@@ -27,16 +27,29 @@ namespace legado_wp.Views
         private int _index;
         private double _fontSize = 21;
         private double _lineHeight = 38;
+        private double _lineExtra = 17;
+        private int _theme;
+        private bool _indent = true;
         private bool _busy;
         private string _chapterText = "";
         private bool _keepOn = true;
         private bool _volumeHintShown;
         private DisplayRequest _displayRequest;
+        private DispatcherTimer _autoTimer;
 
         private ReaderMode _mode = ReaderMode.Scroll;
         private List<string> _pages = new List<string>();
         private int _pageIndex;
         private double _dragStartX;
+
+        /// <summary>阅读主题表：[0]=羊皮 [1]=纯白 [2]=护眼 [3]=夜间。</summary>
+        private static readonly string[][] Themes =
+        {
+            new[] { "#FFF7F3E8", "#FF2B2B2B", "#FFEFE7D0", "#FF6D5B2F", "#FFE8DDBB", "#FF9A8B60" }, // bg fg barBg barFg bar2Bg footerFg
+            new[] { "#FFFFFFFF", "#FF333333", "#FFF2F2F2", "#FF555555", "#FFE8E8E8", "#FF888888" },
+            new[] { "#FFC7EDCC", "#FF2B3A2B", "#FFB5DFBC", "#FF2B3A2B", "#FFA8D6B0", "#FF3D5C42" },
+            new[] { "#FF121212", "#FFAAAAAA", "#FF1E1E1E", "#FF999999", "#FF252525", "#FF666666" }
+        };
 
         public ReaderPage()
         {
@@ -52,6 +65,9 @@ namespace legado_wp.Views
             {
                 var settings = ApplicationData.Current.LocalSettings;
                 _fontSize = (double?)settings.Values["reader.fontSize"] ?? 21;
+                _lineExtra = (double?)settings.Values["reader.lineExtra"] ?? 17;
+                _theme = (int?)settings.Values["reader.theme"] ?? 0;
+                _indent = (bool?)settings.Values["reader.indent"] ?? true;
                 _keepOn = (bool?)settings.Values["reader.keepOn"] ?? true;
                 var m = settings.Values["reader.mode"] as string;
                 switch (m)
@@ -70,10 +86,88 @@ namespace legado_wp.Views
             {
                 var settings = ApplicationData.Current.LocalSettings;
                 settings.Values["reader.fontSize"] = _fontSize;
+                settings.Values["reader.lineExtra"] = _lineExtra;
+                settings.Values["reader.theme"] = _theme;
+                settings.Values["reader.indent"] = _indent;
                 settings.Values["reader.mode"] =
                     _mode == ReaderMode.Cover ? "cover" : _mode == ReaderMode.Curl ? "curl" : "scroll";
             }
             catch { }
+        }
+
+        // ---------------- 主题 / 行距 / 缩进 ----------------
+
+        private Windows.UI.Color ParseColor(string hex)
+        {
+            return Windows.UI.ColorHelper.FromArgb(
+                Convert.ToByte(hex.Substring(1, 2), 16),
+                Convert.ToByte(hex.Substring(3, 2), 16),
+                Convert.ToByte(hex.Substring(5, 2), 16),
+                Convert.ToByte(hex.Substring(7, 2), 16));
+        }
+
+        private void ApplyTheme()
+        {
+            try
+            {
+                var t = Themes[Math.Max(0, Math.Min(Themes.Length - 1, _theme))];
+                Background = new Windows.UI.Xaml.Media.SolidColorBrush(ParseColor(t[0]));
+                var fg = new Windows.UI.Xaml.Media.SolidColorBrush(ParseColor(t[1]));
+                Content.Foreground = fg;
+                PagerContent.Foreground = fg;
+                ChapterTitle.Foreground = new Windows.UI.Xaml.Media.SolidColorBrush(ParseColor(t[3]));
+                Footer.Foreground = new Windows.UI.Xaml.Media.SolidColorBrush(ParseColor(t[5]));
+                var bar = new Windows.UI.Xaml.Media.SolidColorBrush(ParseColor(t[2]));
+                var bar2 = new Windows.UI.Xaml.Media.SolidColorBrush(ParseColor(t[4]));
+                ((Border)VisualTreeHelperGetParent(ChapterTitle)).Background = bar;
+                ((Grid)((FrameworkElement)PrevBtn.Parent)).Background = bar;
+                ((Grid)((FrameworkElement)AutoBtn.Parent)).Background = bar2;
+            }
+            catch { }
+        }
+
+        private static Windows.UI.Xaml.DependencyObject VisualTreeHelperGetParent(Windows.UI.Xaml.DependencyObject o)
+        {
+            return Windows.UI.Xaml.Media.VisualTreeHelper.GetParent(o);
+        }
+
+        /// <summary>段首缩进开关：关闭时去掉净化阶段加的"　　"。</summary>
+        private string FormatText(string text)
+        {
+            if (_indent || string.IsNullOrEmpty(text)) return text;
+            return text.Replace("\n　　", "\n").TrimStart('　', ' ');
+        }
+
+        private void OnThemeParchment(object sender, RoutedEventArgs e) { _theme = 0; ApplyTheme(); SaveSettings(); }
+        private void OnThemeWhite(object sender, RoutedEventArgs e) { _theme = 1; ApplyTheme(); SaveSettings(); }
+        private void OnThemeGreen(object sender, RoutedEventArgs e) { _theme = 2; ApplyTheme(); SaveSettings(); }
+        private void OnThemeDark(object sender, RoutedEventArgs e) { _theme = 3; ApplyTheme(); SaveSettings(); }
+
+        private void SetLineExtra(double v)
+        {
+            _lineExtra = v;
+            ApplyFont();
+            if (_mode != ReaderMode.Scroll) { Paginate(); ShowCurrentPage(); }
+            SaveSettings();
+        }
+        private void OnLineTight(object sender, RoutedEventArgs e) { SetLineExtra(11); }
+        private void OnLineWide(object sender, RoutedEventArgs e) { SetLineExtra(17); }
+        private void OnLineLoose(object sender, RoutedEventArgs e) { SetLineExtra(25); }
+
+        private void OnToggleIndent(object sender, RoutedEventArgs e)
+        {
+            _indent = !_indent;
+            SaveSettings();
+            if (_mode == ReaderMode.Scroll)
+            {
+                Content.Text = FormatText(_chapterText);
+                Scroller.ChangeView(null, 0, null, true);
+            }
+            else
+            {
+                Paginate();
+                ShowCurrentPage();
+            }
         }
 
         // ---------------- 屏幕常亮 & 相机键翻页 ----------------
@@ -146,6 +240,7 @@ namespace legado_wp.Views
             if (_payload == null) { Frame.GoBack(); return; }
             _index = _payload.StartIndex;
             ApplyFont();
+            ApplyTheme();
             ApplyMode(false);
             if (_keepOn) AcquireDisplay();
             HookCameraKey(true);
@@ -158,6 +253,7 @@ namespace legado_wp.Views
             SaveSettings();
             HookCameraKey(false);
             ReleaseDisplay();
+            StopAuto();
         }
 
         // ---------------- 模式 ----------------
@@ -170,7 +266,7 @@ namespace legado_wp.Views
             if (reloadPage)
             {
                 if (paged) Paginate();
-                else Content.Text = _chapterText;
+                else Content.Text = FormatText(_chapterText);
             }
         }
 
@@ -183,6 +279,7 @@ namespace legado_wp.Views
 
         private void ApplyFont()
         {
+            _lineHeight = _fontSize + _lineExtra;
             Content.FontSize = _fontSize;
             Content.LineHeight = _lineHeight;
             PagerContent.FontSize = _fontSize;
@@ -191,12 +288,58 @@ namespace legado_wp.Views
 
         private void OnFontUp(object sender, RoutedEventArgs e)
         {
-            if (_fontSize < 40) { _fontSize += 2; _lineHeight += 3; ApplyFont(); if (_mode != ReaderMode.Scroll) { Paginate(); ShowCurrentPage(); } }
+            if (_fontSize < 40) { _fontSize += 2; ApplyFont(); if (_mode != ReaderMode.Scroll) { Paginate(); ShowCurrentPage(); } }
         }
 
         private void OnFontDown(object sender, RoutedEventArgs e)
         {
-            if (_fontSize > 13) { _fontSize -= 2; _lineHeight -= 3; ApplyFont(); if (_mode != ReaderMode.Scroll) { Paginate(); ShowCurrentPage(); } }
+            if (_fontSize > 13) { _fontSize -= 2; ApplyFont(); if (_mode != ReaderMode.Scroll) { Paginate(); ShowCurrentPage(); } }
+        }
+
+        // ---------------- 自动翻页 ----------------
+
+        private void StopAuto()
+        {
+            if (_autoTimer != null) { _autoTimer.Stop(); _autoTimer = null; }
+            AutoBtn.Content = "自动";
+        }
+
+        private void StartAuto(double seconds)
+        {
+            StopAuto();
+            _autoTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(seconds) };
+            _autoTimer.Tick += OnAutoTick;
+            _autoTimer.Start();
+            AutoBtn.Content = "自动▶";
+        }
+
+        private void OnAutoStop(object sender, RoutedEventArgs e) { StopAuto(); }
+        private void OnAutoSlow(object sender, RoutedEventArgs e) { StartAuto(12); }
+        private void OnAutoMid(object sender, RoutedEventArgs e) { StartAuto(8); }
+        private void OnAutoFast(object sender, RoutedEventArgs e) { StartAuto(4); }
+
+        /// <summary>自动翻页心跳：滚动模式走 ChangeView 步进，分页模式直接翻页；翻页动作会自动暂停。</summary>
+        private void OnAutoTick(object sender, object e)
+        {
+            if (_busy || _payload == null) return;
+            if (_mode == ReaderMode.Scroll)
+            {
+                var offset = Scroller.VerticalOffset;
+                var extent = Scroller.ExtentHeight - Scroller.ViewportHeight;
+                if (extent <= 0 || offset >= extent - 2)
+                {
+                    if (_index < _payload.Chapters.Count - 1) { _index++; _ = LoadChapterAsync(); }
+                    else StopAuto();
+                }
+                else
+                {
+                    Scroller.ChangeView(null, offset + _lineHeight * 2, null);
+                }
+            }
+            else
+            {
+                NextPage();
+            }
         }
 
         // ---------------- 分页 ----------------
@@ -376,6 +519,12 @@ namespace legado_wp.Views
                     var text = await wb.GetContentAsync(_payload.Source, chapter).TimeoutAfter(20000);
                     _chapterText = text.Length == 0 ? "（本章内容为空）" : text;
                 }
+                // 替换净化规则（书名/书源作用域，离线缓存同样生效）
+                _chapterText = await ContentProcessor.ApplyContentAsync(
+                    _chapterText, _payload.Book?.Name, _payload.Source?.BookSourceUrl);
+                ChapterTitle.Text = await ContentProcessor.ApplyTitleAsync(
+                    chapter.Title, _payload.Book?.Name, _payload.Source?.BookSourceUrl)
+                    ?? chapter.Title;
             }
             catch (Exception ex)
             {
@@ -385,7 +534,7 @@ namespace legado_wp.Views
             {
                 if (_mode == ReaderMode.Scroll)
                 {
-                    Content.Text = _chapterText;
+                    Content.Text = FormatText(_chapterText);
                     Scroller.ChangeView(null, 0, null, true);
                 }
                 else

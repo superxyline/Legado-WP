@@ -180,6 +180,31 @@ namespace legado_wp.Core
             await SaveBookmarksAsync(list);
         }
 
+        /// <summary>书源 variable 变更后持久化（java.setVariable 用）。</summary>
+        public static async Task SaveSourceVariableAsync(BookSource source)
+        {
+            try
+            {
+                var sources = await LoadSourcesAsync();
+                var idx = sources.FindIndex(s => s.BookSourceUrl == source.BookSourceUrl);
+                if (idx >= 0) sources[idx] = source;
+                else sources.Add(source);
+                await SaveSourcesAsync(sources);
+            }
+            catch { }
+        }
+
+        // ---------------- 替换净化规则 ----------------
+
+        public static Task<List<ReplaceRule>> LoadReplaceRulesAsync()
+        {
+            return ReadJsonAsync<List<ReplaceRule>>("replace_rules.json")
+                .ContinueWith(t => t.Result ?? new List<ReplaceRule>());
+        }
+
+        public static Task SaveReplaceRulesAsync(List<ReplaceRule> rules) =>
+            WriteJsonAsync("replace_rules.json", rules);
+
         // ---------------- 备份 / 恢复 ----------------
 
         /// <summary>备份载荷：书源 + 书架 + 进度 + 书签 + 阅读器设置。</summary>
@@ -191,6 +216,7 @@ namespace legado_wp.Core
             public List<Book> Shelf { get; set; }
             public Dictionary<string, int> Progress { get; set; }
             public List<Bookmark> Bookmarks { get; set; }
+            public List<ReplaceRule> ReplaceRules { get; set; }
             public double? ReaderFontSize { get; set; }
             public string ReaderMode { get; set; }
         }
@@ -204,7 +230,8 @@ namespace legado_wp.Core
                 Sources = await LoadSourcesAsync(),
                 Shelf = await LoadShelfAsync(),
                 Progress = await LoadProgressAsync(),
-                Bookmarks = await LoadBookmarksAsync()
+                Bookmarks = await LoadBookmarksAsync(),
+                ReplaceRules = await LoadReplaceRulesAsync()
             };
             try
             {
@@ -234,6 +261,7 @@ namespace legado_wp.Core
                 await SaveShelfAsync(p.Shelf ?? new List<Book>());
                 await SaveProgressAsync(p.Progress ?? new Dictionary<string, int>());
                 await SaveBookmarksAsync(p.Bookmarks ?? new List<Bookmark>());
+                if (p.ReplaceRules != null) await SaveReplaceRulesAsync(p.ReplaceRules);
             }
             else
             {
@@ -260,6 +288,15 @@ namespace legado_wp.Core
                         && x.ChapterIndex == m.ChapterIndex && x.PageIndex == m.PageIndex))
                         marks.Add(m);
                 await SaveBookmarksAsync(marks);
+
+                if (p.ReplaceRules != null && p.ReplaceRules.Count > 0)
+                {
+                    var rules = await LoadReplaceRulesAsync();
+                    var names = new HashSet<string>(rules.Select(r => (r.Name ?? "") + "|" + (r.Pattern ?? "")));
+                    foreach (var r in p.ReplaceRules)
+                        if (names.Add((r.Name ?? "") + "|" + (r.Pattern ?? ""))) rules.Add(r);
+                    await SaveReplaceRulesAsync(rules);
+                }
             }
 
             try
@@ -273,7 +310,8 @@ namespace legado_wp.Core
             return "书源 " + (p.Sources?.Count ?? 0)
                 + " · 书架 " + (p.Shelf?.Count ?? 0)
                 + " · 进度 " + (p.Progress?.Count ?? 0)
-                + " · 书签 " + (p.Bookmarks?.Count ?? 0);
+                + " · 书签 " + (p.Bookmarks?.Count ?? 0)
+                + " · 净化规则 " + (p.ReplaceRules?.Count ?? 0);
         }
     }
 }

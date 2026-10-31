@@ -57,13 +57,13 @@ namespace legado_wp.Core
             var res = await _fetcher.GetAsync(au);
             DebugLog.Add("search code=" + res.Code + " len=" + (res.Body?.Length ?? 0) + " url=" + au.Url);
 
-            var analyzer = new AnalyzeRule(res.Body) { BaseUrl = au.BaseUrl };
+            var analyzer = new AnalyzeRule(res.Body) { BaseUrl = au.BaseUrl, Source = source };
             var items = analyzer.GetElements(source.SearchRule?.BookList);
             var result = new List<SearchBook>();
             foreach (var item in items)
             {
                 var sb = new SearchBook { SourceUrl = source.BookSourceUrl };
-                var ia = new AnalyzeRule(item) { BaseUrl = au.BaseUrl };
+                var ia = new AnalyzeRule(item) { BaseUrl = au.BaseUrl, Source = source };
                 sb.Name = ia.GetString(source.SearchRule?.Name);
                 sb.Author = ia.GetString(source.SearchRule?.Author);
                 sb.BookUrl = ResolveUrl(ia, source.SearchRule?.BookUrl);
@@ -91,7 +91,7 @@ namespace legado_wp.Core
             var res = await _fetcher.GetAsync(au);
             DebugLog.Add("info " + au.Url + " -> len=" + (res.Body?.Length ?? 0));
 
-            var ia = new AnalyzeRule(res.Body) { BaseUrl = au.BaseUrl };
+            var ia = new AnalyzeRule(res.Body) { BaseUrl = au.BaseUrl, Source = source };
             var newName = ia.GetString(rule.Name);
             if (!string.IsNullOrEmpty(newName)) book.Name = newName;
             var newAuthor = ia.GetString(rule.Author);
@@ -119,11 +119,11 @@ namespace legado_wp.Core
                 var res = await _fetcher.GetAsync(au);
                 DebugLog.Add("toc[" + pages + "] " + au.Url + " -> len=" + (res.Body?.Length ?? 0));
 
-                var ia = new AnalyzeRule(res.Body) { BaseUrl = au.BaseUrl };
+                var ia = new AnalyzeRule(res.Body) { BaseUrl = au.BaseUrl, Source = source };
                 var items = ia.GetElements(source.TocRule?.ChapterList);
                 foreach (var item in items)
                 {
-                    var ca = new AnalyzeRule(item) { BaseUrl = au.BaseUrl };
+                    var ca = new AnalyzeRule(item) { BaseUrl = au.BaseUrl, Source = source };
                     var ch = new BookChapter
                     {
                         Title = ca.GetString(source.TocRule?.ChapterName),
@@ -153,7 +153,7 @@ namespace legado_wp.Core
                 var res = await _fetcher.GetAsync(au);
                 DebugLog.Add("content[" + pages + "] " + au.Url + " -> len=" + (res.Body?.Length ?? 0));
 
-                var ia = new AnalyzeRule(res.Body) { BaseUrl = au.BaseUrl };
+                var ia = new AnalyzeRule(res.Body) { BaseUrl = au.BaseUrl, Source = source };
                 var content = ia.GetString(source.ContentRule?.Content);
                 if (content.Length > 0)
                 {

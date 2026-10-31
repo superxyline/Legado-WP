@@ -80,6 +80,33 @@ namespace legado_wp.Views
             Frame.Navigate(typeof(ScanPage));
         }
 
+        /// <summary>编辑书源 variable（JS 里 java.getVariable/setVariable 读写的就是它）。</summary>
+        private async void OnVariableClick(object sender, RoutedEventArgs e)
+        {
+            var btn = sender as Button;
+            var src = btn?.DataContext as BookSource;
+            if (src == null) return;
+            var box = new TextBox
+            {
+                Text = src.Variable ?? "",
+                PlaceholderText = "书源变量（JSON 或任意文本，书源 JS 通过 java.getVariable() 读取）",
+                AcceptsReturn = true,
+                Height = 160
+            };
+            var dlg = new ContentDialog
+            {
+                Title = "书源变量：" + src.BookSourceName,
+                Content = box,
+                PrimaryButtonText = "保存",
+                CloseButtonText = "取消"
+            };
+            if (await dlg.ShowAsync() == ContentDialogResult.Primary)
+            {
+                src.Variable = box.Text;
+                await Storage.SaveSourceVariableAsync(src);
+            }
+        }
+
         private async void OnToggle(object sender, RoutedEventArgs e)
         {
             if (_suppressToggle) return;

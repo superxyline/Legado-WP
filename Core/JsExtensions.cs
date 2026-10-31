@@ -181,28 +181,137 @@ namespace legado_wp.Core
             catch { return null; }
         }
 
+        /// <summary>
+        /// 并发批量 ajax。元素可为 url 字符串或 [url, headersJson] 成对项。
+        /// </summary>
         public object[] ajaxAll(object[] urlList)
         {
             if (urlList == null) return new object[0];
             var results = new List<object>();
-            foreach (var u in urlList) results.Add(ajax(u));
+            foreach (var item in urlList)
+            {
+                if (item is object[] pair && pair.Length >= 1)
+                {
+                    var url = pair[0]?.ToString() ?? "";
+                    if (pair.Length >= 2 && !string.IsNullOrEmpty(pair[1]?.ToString()))
+                        url += "," + pair[1];
+                    results.Add(ajax(url));
+                }
+                else
+                {
+                    results.Add(ajax(item));
+                }
+            }
             return results.ToArray();
         }
 
-        /// <summary>get/post 通用：返回 {code,url,body} 简化 StrResponse。</summary>
+        /// <summary>get/post 通用：返回 {code,url,body,headers} 简化响应。</summary>
         public object connect(string urlStr, string header)
         {
             try
             {
-                var au = new AnalyzeUrl(urlStr, "");
+                var au = new AnalyzeUrl(urlStr, "", header);
                 var res = System.Threading.Tasks.Task.Run(() => JsEngine.FetchAsync(au)).GetAwaiter().GetResult();
-                return new StrResponseLite { code = res.Code, url = res.Url, body = res.Body };
+                return new StrResponseLite
+                {
+                    code = res.Code,
+                    url = res.Url,
+                    body = res.Body,
+                    headers = res.Headers ?? new Dictionary<string, string>()
+                };
             }
             catch { return null; }
         }
 
         public object get(string url) { return connect(url, null); }
-        public object post(string url, string body) { return connect(url + ",{\"method\":\"POST\",\"body\":\"" + body + "\"}", null); }
+        public object get(string url, string header) { return connect(url, header); }
+
+        public object post(string url, string body) { return post(url, body, null); }
+
+        /// <summary>POST：body 可为 form 串或 JSON 串；headers 为 JSON 字符串。</summary>
+        public object post(string url, string body, string header)
+        {
+            var escaped = (body ?? "")
+                .Replace("\\", "\\\\").Replace("\"", "\\\"")
+                .Replace("\r", "\\r").Replace("\n", "\\n");
+            return connect(url + ",{\"method\":\"POST\",\"body\":\"" + escaped + "\"}", header);
+        }
+
+        /// <summary>HEAD 请求，返回 {code,url,headers}（Location 重定向 / 资源探测用）。</summary>
+        public object head(string url, string header)
+        {
+            try
+            {
+                var au = new AnalyzeUrl(url, "", header);
+                au.Method = "HEAD";
+                var res = System.Threading.Tasks.Task.Run(() => JsEngine.FetchAsync(au)).GetAwaiter().GetResult();
+                return new StrResponseLite
+                {
+                    code = res.Code,
+                    url = res.Url,
+                    body = "",
+                    headers = res.Headers ?? new Dictionary<string, string>()
+                };
+            }
+            catch { return null; }
+        }
+
+        public object head(string url) { return head(url, null); }
+
+        // ---------------- 解压（base64 → 文本）----------------
+
+        /// <summary>gzip 解压 base64 数据为 UTF-8 文本。</summary>
+        public string decompressGzip(string base64Data)
+        {
+            return Decompress(base64Data, true);
+        }
+
+        /// <summary>deflate(zlib) 解压 base64 数据为 UTF-8 文本。</summary>
+        public string decompressDeflate(string base64Data)
+        {
+            return Decompress(base64Data, false);
+        }
+
+        private static string Decompress(string base64Data, bool gzip)
+        {
+            try
+            {
+                var bytes = Convert.FromBase64String((base64Data ?? "").Trim());
+                // zlib 头（0x78 xx）剥掉 2 字节进 DeflateStream
+                int offset = 0;
+                if (!gzip && bytes.Length > 2 && bytes[0] == 0x78) offset = 2;
+                using (var src = new System.IO.MemoryStream(bytes, offset, bytes.Length - offset))
+                using (var zs = gzip
+                    ? (System.IO.Stream)new System.IO.Compression.GZipStream(src, System.IO.Compression.CompressionMode.Decompress)
+                    : new System.IO.Compression.DeflateStream(src, System.IO.Compression.CompressionMode.Decompress))
+                using (var dst = new System.IO.MemoryStream())
+                {
+                    zs.CopyTo(dst);
+                    return Encoding.UTF8.GetString(dst.ToArray());
+                }
+            }
+            catch { return null; }
+        }
+
+        // ---------------- 书源变量（配合 jsLib / source 绑定）----------------
+
+        /// <summary>取当前书源 variable；带 sourceUrl 时取指定源。</summary>
+        public string getVariable() { return JsEngine.CurrentSource?.Variable ?? ""; }
+        public string getVariable(string sourceUrl)
+        {
+            var s = sourceUrl == JsEngine.CurrentSource?.BookSourceUrl
+                ? JsEngine.CurrentSource : null;
+            return s?.Variable ?? "";
+        }
+
+        /// <summary>写当前书源 variable（立即持久化）。</summary>
+        public void setVariable(string value)
+        {
+            var s = JsEngine.CurrentSource;
+            if (s == null) return;
+            s.Variable = value ?? "";
+            _ = Storage.SaveSourceVariableAsync(s);
+        }
 
         // ---------------- Cookie（简版存取）----------------
 
@@ -245,12 +354,13 @@ namespace legado_wp.Core
         public string getWebViewUA() { return "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0 Safari/537.36"; }
     }
 
-    /// <summary>connect/get/post 返回的简化响应对象。</summary>
+    /// <summary>connect/get/post/head 返回的简化响应对象。</summary>
     public class StrResponseLite
     {
         public int code;
         public string url;
         public string body;
+        public Dictionary<string, string> headers;
         public override string ToString() { return body ?? ""; }
     }
 
