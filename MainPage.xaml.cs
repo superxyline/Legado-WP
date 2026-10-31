@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using Windows.Security.Cryptography;
@@ -49,6 +50,22 @@ namespace legado_wp
             {
                 Log("[env] arch=" + (IntPtr.Size == 8 ? "x64" : "32bit(x86/ARM)"));
                 Log("[env] os=" + AnalyticsInfo.VersionInfo.DeviceFamily);
+
+                // 0.0.15.1：把 crash.log 尾部带上屏（真机闪退诊断）
+                try
+                {
+                    var cf = await Windows.Storage.ApplicationData.Current.LocalFolder
+                        .TryGetItemAsync("crash.log") as Windows.Storage.StorageFile;
+                    if (cf != null)
+                    {
+                        var text = await Windows.Storage.FileIO.ReadTextAsync(cf);
+                        var lines = text.Split('\n');
+                        var tail = lines.Length > 30 ? string.Join("\n", lines.Skip(lines.Length - 30)) : text;
+                        Log("[crash.log 尾部]\n" + tail.TrimEnd());
+                    }
+                    else Log("[crash.log] 无记录");
+                }
+                catch (Exception cex) { Log("[crash.log] 读取失败: " + cex.Message); }
 
                 Log("[step] js begin");
                 ProbeJs();

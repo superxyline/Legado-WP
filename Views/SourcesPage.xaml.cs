@@ -29,19 +29,26 @@ namespace legado_wp.Views
         private async Task ReloadAsync()
         {
             _suppressToggle = true;
+            var step = "存储读取";
             try
             {
                 _sources = await Storage.LoadSourcesAsync();
-                // 先清选中再换 ItemsSource，避免多选模式下替换列表触发崩溃
+
+                step = "清空选中";
                 SourceList.SelectedItems.Clear();
+
+                step = "列表渲染";
                 SourceList.ItemsSource = _sources;
+
+                step = "界面状态";
                 StatusHint.Visibility = _sources.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
                 SourceList.Visibility = _sources.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
             }
             catch (Exception ex)
             {
-                StatusHint.Text = "书源加载失败：" + ex.Message;
+                StatusHint.Text = "书源加载失败[" + step + "]：" + ex.Message;
                 StatusHint.Visibility = Visibility.Visible;
+                _ = BookshelfPage.LogLaunchCrashAsync("sources-reload@" + step, ex);
             }
             finally
             {
