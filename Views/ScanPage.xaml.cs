@@ -6,6 +6,7 @@ using Windows.Media;
 using Windows.Media.Capture;
 using Windows.Media.Devices;
 using Windows.Media.MediaProperties;
+using Windows.System.Display;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -33,6 +34,7 @@ namespace legado_wp.Views
         private int _decodeCount;
         private string _lastError = "";
         private VideoEncodingProperties _previewProps;
+        private DisplayRequest _displayRequest;
 
         public ScanPage()
         {
@@ -42,7 +44,21 @@ namespace legado_wp.Views
         protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
             ApplyPreviewTransform();
+            // 扫码+大合集下载期间防锁屏（下载中断=前功尽弃）
+            try
+            {
+                if (_displayRequest == null) _displayRequest = new DisplayRequest();
+                _displayRequest.RequestActive();
+            }
+            catch { }
             await StartCameraAsync();
+        }
+
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            try { _displayRequest?.RequestRelease(); }
+            catch { }
+            StopCamera();
         }
 
         /// <summary>
@@ -65,11 +81,6 @@ namespace legado_wp.Views
                 Preview.VerticalAlignment = VerticalAlignment.Center;
             }
             catch { /* 桌面或异常尺寸忽略 */ }
-        }
-
-        protected override void OnNavigatedFrom(NavigationEventArgs e)
-        {
-            StopCamera();
         }
 
         private async Task StartCameraAsync()
